@@ -1,0 +1,89 @@
+2025-11-15 10:06:30,567 | INFO | ============================================================
+2025-11-15 10:06:30,568 | INFO | NUOVA SESSIONE AGENTIC KRAG
+2025-11-15 10:06:30,568 | INFO | ============================================================
+2025-11-15 10:06:30,568 | INFO | 🚀 Inizializzazione Agente KRAG
+2025-11-15 10:06:30,568 | INFO | 📡 Caricamento modello: Groq - llama-3.3-70b-versatile
+2025-11-15 10:06:31,723 | INFO | 🔧 Inizializzazione tools (Neo4j, Tavily, Scraper)
+2025-11-15 10:06:31,753 | INFO | ✅ Agente pronto per l'analisi
+2025-11-15 10:06:31,783 | INFO | Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2025-11-15 10:06:31,977 | INFO | 🔍 Analisi contenuto documento per deduzione entità
+2025-11-15 10:06:32,373 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 10:06:32,384 | INFO | ✅ Entità dedotta: Perplexity AI (confidenza: high)
+2025-11-15 10:06:32,386 | INFO | ============================================================
+2025-11-15 10:06:32,387 | INFO | 🎯 INIZIO ANALISI STREAMING: 'Perplexity AI'
+2025-11-15 10:06:32,388 | INFO | ============================================================
+2025-11-15 10:06:32,389 | INFO | 🔍 FASE 1/7: Verifica presenza entità
+2025-11-15 10:06:32,390 | INFO | 🔍 Analisi contenuto documento per deduzione entità
+2025-11-15 10:06:32,660 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 10:06:32,662 | INFO | ✅ Entità dedotta: Perplexity AI (confidenza: high)
+2025-11-15 10:06:32,662 | INFO | 📊 FASE 2/7: Estrazione metriche VC
+2025-11-15 10:06:32,663 | INFO | 📊 Estrazione metriche VC per 'Perplexity AI'
+2025-11-15 10:06:33,229 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 10:06:33,232 | INFO | ✅ Metriche estratte per 'Perplexity AI'
+2025-11-15 10:06:33,233 | INFO | 🔄 FASE 3/7: RAG + Estrazione Claims (parallelo)
+2025-11-15 10:06:33,234 | INFO |   📚 Avvio recupero RAG...
+2025-11-15 10:06:33,235 | INFO |   🔬 Avvio estrazione Claims...
+2025-11-15 10:06:33,237 | INFO |   → Query 1/4: Contesto strategico
+2025-11-15 10:06:33,241 | WARNING |   ⚠️ Errore query 1: 
+2025-11-15 10:06:33,495 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 10:06:33,498 | INFO | ✅ [Tool 2] Estratte 1 affermazioni verificabili
+2025-11-15 10:06:33,499 | ERROR | ❌ [Tool 2] Estrazione fallita: 
+2025-11-15 10:06:33,501 | ERROR | ❌ ERRORE CRITICO: 
+2025-11-15 10:06:33,506 | ERROR | Traceback (most recent call last):
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\analyzer.py", line 249, in get_document_context
+    self.log_status(f"  → Query {i}/4: Contesto {['strategico', 'team', 'finanziario', 'mercato'][i - 1]}",
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                    "info")
+                    ^^^^^^^
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\analyzer.py", line 100, in log_status
+    self.status_callback(message, level)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\app.py", line 140, in _callback
+    container.info(message)
+    ~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\.venv\Lib\site-packages\streamlit\runtime\metrics_util.py", line 447, in wrapped_func
+    result = non_optional_func(*args, **kwargs)
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\.venv\Lib\site-packages\streamlit\elements\alert.py", line 248, in info
+    return self.dg._enqueue("alert", alert_proto)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\.venv\Lib\site-packages\streamlit\delta_generator.py", line 504, in _enqueue
+    _enqueue_message(msg)
+    ~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\.venv\Lib\site-packages\streamlit\runtime\scriptrunner_utils\script_run_context.py", line 289, in enqueue_message
+    raise NoSessionContext()
+streamlit.errors.NoSessionContext
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\analyzer.py", line 1222, in run_full_analysis_streaming
+    contesto_rag = future_rag.result()
+  File "C:\Users\StefanoRoteglia\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\_base.py", line 456, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\StefanoRoteglia\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+  File "C:\Users\StefanoRoteglia\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\analyzer.py", line 257, in get_document_context
+    self.log_status(f"  ⚠️ Errore query {i}: {e}", "warning")
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\analyzer.py", line 100, in log_status
+    self.status_callback(message, level)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\app.py", line 136, in _callback
+    container.warning(message)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\.venv\Lib\site-packages\streamlit\runtime\metrics_util.py", line 447, in wrapped_func
+    result = non_optional_func(*args, **kwargs)
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\.venv\Lib\site-packages\streamlit\elements\alert.py", line 175, in warning
+    return self.dg._enqueue("alert", alert_proto)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\.venv\Lib\site-packages\streamlit\delta_generator.py", line 504, in _enqueue
+    _enqueue_message(msg)
+    ~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\StefanoRoteglia\PycharmProjects\VCAnalyzer\.venv\Lib\site-packages\streamlit\runtime\scriptrunner_utils\script_run_context.py", line 289, in enqueue_message
+    raise NoSessionContext()
+streamlit.errors.NoSessionContext
+
+2025-11-15 10:06:33,508 | INFO | 🔌 Connessione Neo4j chiusa

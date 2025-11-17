@@ -1,0 +1,400 @@
+2025-11-15 14:21:17,939 | INFO | ============================================================
+2025-11-15 14:21:17,940 | INFO | NUOVA SESSIONE AGENTIC KRAG
+2025-11-15 14:21:17,940 | INFO | ============================================================
+2025-11-15 14:21:17,941 | INFO | 🚀 Inizializzazione Agente KRAG
+2025-11-15 14:21:17,941 | INFO | 📡 Caricamento modello: Groq - llama-3.3-70b-versatile
+2025-11-15 14:21:18,893 | INFO | 🔧 Inizializzazione tools (Neo4j, Tavily, Scraper)
+2025-11-15 14:21:18,913 | INFO | ✅ Agente pronto per l'analisi
+2025-11-15 14:21:18,939 | INFO | Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2025-11-15 14:21:19,209 | INFO | 🔍 Analisi contenuto documento per deduzione entità
+2025-11-15 14:21:19,738 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:19,746 | INFO | ✅ Entità dedotta: c/ua (confidenza: high)
+2025-11-15 14:21:19,747 | INFO | ============================================================
+2025-11-15 14:21:19,748 | INFO | 🎯 INIZIO ANALISI STREAMING: 'c/ua'
+2025-11-15 14:21:19,748 | INFO | ============================================================
+2025-11-15 14:21:19,749 | INFO | 🔍 FASE 1/7: Verifica presenza entità
+2025-11-15 14:21:19,749 | INFO | 🔍 Analisi contenuto documento per deduzione entità
+2025-11-15 14:21:20,065 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:20,067 | INFO | ✅ Entità dedotta: c/ua (confidenza: high)
+2025-11-15 14:21:20,067 | INFO | 📊 FASE 2/7: Estrazione metriche VC (Documento)
+2025-11-15 14:21:20,068 | INFO | 📊 Estrazione metriche VC per 'c/ua'
+2025-11-15 14:21:20,545 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:20,547 | INFO | ✅ Metriche estratte per 'c/ua'
+2025-11-15 14:21:20,547 | INFO | 🌐 FASE 2.5/7: Arricchimento metriche VC (Web)
+2025-11-15 14:21:20,548 | INFO | 🌐 [Tool 2.5] Arricchimento metriche VC per 'c/ua' da web
+2025-11-15 14:21:20,549 | INFO |   [Tool 2.5] Avvio ricerca metriche (Depth: basic)
+2025-11-15 14:21:23,153 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:23,155 | INFO |   ✅ [Tool 2.5] Estrazione metriche da web completata
+2025-11-15 14:21:23,157 | INFO |   🔄 Unione profili metriche (Documento sovrascrive Web)
+2025-11-15 14:21:23,158 | INFO | 🔄 FASE 3/7: RAG + Estrazione Claims (parallelo)
+2025-11-15 14:21:23,159 | INFO |   📚 Avvio recupero RAG...
+2025-11-15 14:21:23,159 | INFO |   🔬 Avvio estrazione Claims...
+2025-11-15 14:21:23,676 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:23,678 | INFO |   ✅ RAG e Claims completati.
+2025-11-15 14:21:23,678 | INFO | ✅ FASE 4/7: Fact-Checking affermazioni
+2025-11-15 14:21:23,679 | INFO | 🔍 [Tool 3] Avvio fact-checking per 5 affermazioni
+2025-11-15 14:21:23,679 | INFO |   → Claim 1/5: Verifica 'è un framework open-source...'
+2025-11-15 14:21:23,681 | INFO |   → Claim 2/5: Verifica 'utilizza Apple's Virtualization.Framework...'
+2025-11-15 14:21:23,683 | INFO |   → Claim 3/5: Verifica 'raggiunge fino al 97% della velocità nativa della ...'
+2025-11-15 14:21:23,686 | INFO |   → Claim 4/5: Verifica 'supporta LLM providers come OpenAI, Anthropic, Oll...'
+2025-11-15 14:21:23,689 | INFO |   → Claim 5/5: Verifica 'supporta MCP e può essere utilizzato con Claude De...'
+2025-11-15 14:21:25,751 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:25,856 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:25,965 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:26,075 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:26,217 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:26,222 | INFO | ✅ [Tool 3] Fact-checking completato: {'VERIFICATA': 4, 'PARZIALMENTE VERIFICATA': 1}
+2025-11-15 14:21:26,223 | INFO | 🕸️ FASE 5/7: Popolamento/Aggiornamento grafo da Web per 'c/ua'
+2025-11-15 14:21:26,223 | INFO | 🔄 [Tool 6] Avvio ciclo di popolamento per 'c/ua'
+2025-11-15 14:21:26,224 | INFO |   [Tool 6] Avvio ricerca grafo (Depth: basic, Max Results: 10)
+2025-11-15 14:21:28,064 | INFO |   📄 Trovate 11 fonti di testo da analizzare
+2025-11-15 14:21:28,112 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:28,113 | INFO | Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2025-11-15 14:21:28,156 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:28,157 | INFO | Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2025-11-15 14:21:28,161 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:28,162 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:28,162 | INFO | Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2025-11-15 14:21:28,163 | INFO | Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2025-11-15 14:21:28,169 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:28,170 | INFO | Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2025-11-15 14:21:30,203 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:30,203 | INFO | Retrying request to /openai/v1/chat/completions in 5.000000 seconds
+2025-11-15 14:21:30,205 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:30,205 | INFO | Retrying request to /openai/v1/chat/completions in 5.000000 seconds
+2025-11-15 14:21:30,209 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:30,210 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:30,210 | INFO | Retrying request to /openai/v1/chat/completions in 5.000000 seconds
+2025-11-15 14:21:30,211 | INFO | Retrying request to /openai/v1/chat/completions in 5.000000 seconds
+2025-11-15 14:21:30,306 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:30,355 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:30,356 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:35,256 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:35,257 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:35,289 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:35,289 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:35,298 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:35,299 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:35,456 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:35,506 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:35,507 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:36,395 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:36,396 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:41,365 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:41,365 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:41,373 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:41,374 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:41,547 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:41,548 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:41,610 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:41,654 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:41,655 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:42,437 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:42,439 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:47,721 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:47,722 | INFO | Retrying request to /openai/v1/chat/completions in 5.000000 seconds
+2025-11-15 14:21:47,729 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:47,730 | INFO | Retrying request to /openai/v1/chat/completions in 5.000000 seconds
+2025-11-15 14:21:47,738 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:47,739 | INFO | Retrying request to /openai/v1/chat/completions in 5.000000 seconds
+2025-11-15 14:21:47,822 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:47,864 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:47,865 | INFO | Retrying request to /openai/v1/chat/completions in 8.000000 seconds
+2025-11-15 14:21:48,477 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:48,478 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:52,820 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:52,821 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:52,924 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:52,931 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:21:52,969 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:52,970 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:52,976 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:52,976 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:54,515 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:54,516 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:55,904 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:55,904 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:59,052 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:59,052 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:59,056 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:21:59,057 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:21:59,091 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:22:00,555 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:22:01,949 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:22:01,949 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:22:05,152 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:22:05,154 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:22:05,271 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:22:07,991 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:22:07,992 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:22:11,467 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:22:14,033 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:22:14,034 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:22:20,379 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:22:20,384 | INFO |   ⏱️ Analisi completata in 54.2s. Avvio votazione...
+2025-11-15 14:22:20,386 | INFO |   💾 Scrittura su Neo4j: 0 fondazioni, 1 investimenti
+2025-11-15 14:22:20,556 | INFO | ✅ [Tool 6] Knowledge Graph popolato con successo
+2025-11-15 14:22:20,557 | INFO |   ✅ Grafo aggiornato/popolato con successo da web.
+2025-11-15 14:22:20,557 | INFO |   🕸️ Query del grafo (aggiornato) in corso...
+2025-11-15 14:22:20,558 | INFO | 🕸️ [Tool 4] Query Knowledge Graph per 'c/ua'
+2025-11-15 14:22:20,565 | INFO | ✅ [Tool 4] Contesto grafo recuperato
+2025-11-15 14:22:20,571 | INFO | 📈 FASE 6/7: Analisi metriche vs benchmark
+2025-11-15 14:22:20,571 | INFO | 📈 Generazione analisi metriche vs benchmark
+2025-11-15 14:22:20,614 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:22:20,615 | INFO | Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2025-11-15 14:22:23,422 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:22:23,424 | INFO | ✅ Analisi metriche completata
+2025-11-15 14:22:23,425 | INFO | 🚩 FASE 7/8: Risk Analysis
+2025-11-15 14:22:23,426 | INFO | 🚩 Generazione Risk Analysis
+2025-11-15 14:22:23,470 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:22:23,471 | INFO | Retrying request to /openai/v1/chat/completions in 7.000000 seconds
+2025-11-15 14:22:32,439 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:22:32,510 | INFO | ✅ Risk Analysis completata
+2025-11-15 14:22:32,654 | INFO | ✅ FASE 8/9: Feasibility Analysis
+2025-11-15 14:22:32,656 | INFO | ✅ Generazione Feasibility Analysis
+2025-11-15 14:22:32,726 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:22:32,727 | INFO | Retrying request to /openai/v1/chat/completions in 17.000000 seconds
+2025-11-15 14:22:51,978 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:22:51,981 | INFO | ✅ Feasibility Analysis completata
+2025-11-15 14:22:51,983 | INFO | 📝 FASE 9/9: Executive Summary
+2025-11-15 14:22:51,984 | INFO | 📝 Generazione Executive Summary
+2025-11-15 14:22:52,023 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:22:52,024 | INFO | Retrying request to /openai/v1/chat/completions in 12.000000 seconds
+2025-11-15 14:23:05,887 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:23:05,890 | INFO | ✅ Executive Summary completato
+2025-11-15 14:23:05,891 | INFO | ============================================================
+2025-11-15 14:23:05,892 | INFO | ✅ ANALISI COMPLETATA IN 106.1s
+2025-11-15 14:23:05,893 | INFO | ============================================================
+2025-11-15 14:23:05,933 | INFO | 🔌 Connessione Neo4j chiusa
+2025-11-15 14:23:47,582 | INFO | 🔍 Analisi contenuto documento per deduzione entità
+2025-11-15 14:23:47,874 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:23:47,877 | INFO | ✅ Entità dedotta: c/ua (confidenza: high)
+2025-11-15 14:23:47,879 | INFO | ============================================================
+2025-11-15 14:23:47,879 | INFO | 🎯 INIZIO ANALISI STREAMING: 'c/ua'
+2025-11-15 14:23:47,880 | INFO | ============================================================
+2025-11-15 14:23:47,881 | INFO | 🔍 FASE 1/7: Verifica presenza entità
+2025-11-15 14:23:47,881 | INFO | 🔍 Analisi contenuto documento per deduzione entità
+2025-11-15 14:23:48,167 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:23:48,169 | INFO | ✅ Entità dedotta: c/ua (confidenza: high)
+2025-11-15 14:23:48,170 | INFO | 📊 FASE 2/7: Estrazione metriche VC (Documento)
+2025-11-15 14:23:48,171 | INFO | 📊 Estrazione metriche VC per 'c/ua'
+2025-11-15 14:23:48,593 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:23:48,596 | INFO | ✅ Metriche estratte per 'c/ua'
+2025-11-15 14:23:48,597 | INFO | 🌐 FASE 2.5/7: Arricchimento metriche VC (Web)
+2025-11-15 14:23:48,598 | INFO | 🌐 [Tool 2.5] Arricchimento metriche VC per 'c/ua' da web
+2025-11-15 14:23:48,599 | INFO |   [Tool 2.5] Avvio ricerca metriche (Depth: advanced)
+2025-11-15 14:23:54,280 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:23:54,281 | INFO | Retrying request to /openai/v1/chat/completions in 7.000000 seconds
+2025-11-15 14:24:01,932 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:24:01,934 | INFO |   ✅ [Tool 2.5] Estrazione metriche da web completata
+2025-11-15 14:24:01,935 | INFO |   🔄 Unione profili metriche (Documento sovrascrive Web)
+2025-11-15 14:24:01,936 | INFO | 🔄 FASE 3/7: RAG + Estrazione Claims (parallelo)
+2025-11-15 14:24:01,937 | INFO |   📚 Avvio recupero RAG...
+2025-11-15 14:24:01,937 | INFO |   🔬 Avvio estrazione Claims...
+2025-11-15 14:24:01,982 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:01,982 | INFO | Retrying request to /openai/v1/chat/completions in 8.000000 seconds
+2025-11-15 14:24:10,479 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:24:10,482 | INFO |   ✅ RAG e Claims completati.
+2025-11-15 14:24:10,483 | INFO | ✅ FASE 4/7: Fact-Checking affermazioni
+2025-11-15 14:24:10,483 | INFO | 🔍 [Tool 3] Avvio fact-checking per 3 affermazioni
+2025-11-15 14:24:10,484 | INFO |   → Claim 1/3: Verifica 'è un framework open-source...'
+2025-11-15 14:24:10,487 | INFO |   → Claim 2/3: Verifica 'utilizza Apple's Virtualization.Framework...'
+2025-11-15 14:24:10,489 | INFO |   → Claim 3/3: Verifica 'fornisce fino al 97% della velocità del processore...'
+2025-11-15 14:24:11,340 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:11,341 | INFO | Retrying request to /openai/v1/chat/completions in 1.000000 seconds
+2025-11-15 14:24:12,451 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:24:12,490 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:12,490 | INFO | Retrying request to /openai/v1/chat/completions in 1.000000 seconds
+2025-11-15 14:24:13,598 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:24:17,149 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:24:17,154 | INFO | ✅ [Tool 3] Fact-checking completato: {'VERIFICATA': 3}
+2025-11-15 14:24:17,156 | INFO | 🕸️ FASE 5/7: Popolamento/Aggiornamento grafo da Web per 'c/ua'
+2025-11-15 14:24:17,157 | INFO | 🔄 [Tool 6] Avvio ciclo di popolamento per 'c/ua'
+2025-11-15 14:24:17,158 | INFO |   [Tool 6] Avvio ricerca grafo (Depth: advanced, Max Results: 20)
+2025-11-15 14:24:21,947 | INFO |   📄 Trovate 21 fonti di testo da analizzare
+2025-11-15 14:24:22,039 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:22,039 | INFO | Retrying request to /openai/v1/chat/completions in 4.000000 seconds
+2025-11-15 14:24:22,042 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:22,043 | INFO | Retrying request to /openai/v1/chat/completions in 6.000000 seconds
+2025-11-15 14:24:22,055 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:22,056 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:22,057 | INFO | Retrying request to /openai/v1/chat/completions in 4.000000 seconds
+2025-11-15 14:24:22,057 | INFO | Retrying request to /openai/v1/chat/completions in 5.000000 seconds
+2025-11-15 14:24:22,218 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:24:22,260 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:22,261 | INFO | Retrying request to /openai/v1/chat/completions in 5.000000 seconds
+2025-11-15 14:24:26,097 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,136 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,137 | INFO | Retrying request to /openai/v1/chat/completions in 48.000000 seconds
+2025-11-15 14:24:26,428 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:24:26,472 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,513 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,556 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,599 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,640 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,680 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,719 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,762 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,805 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,847 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,887 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,925 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:26,966 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:27,004 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:27,093 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:27,300 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:24:28,087 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:25:14,214 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:25:14,215 | INFO | Retrying request to /openai/v1/chat/completions in 45.000000 seconds
+2025-11-15 14:25:59,479 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-15 14:25:59,483 | INFO |   ⏱️ Analisi completata in 102.3s. Avvio votazione...
+2025-11-15 14:25:59,484 | INFO |   💾 Scrittura su Neo4j: 1 fondazioni, 0 investimenti
+2025-11-15 14:25:59,485 | INFO | ✅ [Tool 6] Knowledge Graph popolato con successo
+2025-11-15 14:25:59,485 | INFO |   ✅ Grafo aggiornato/popolato con successo da web.
+2025-11-15 14:25:59,486 | INFO |   🕸️ Query del grafo (aggiornato) in corso...
+2025-11-15 14:25:59,487 | INFO | 🕸️ [Tool 4] Query Knowledge Graph per 'c/ua'
+2025-11-15 14:25:59,488 | WARNING | ⚠️ [Tool 4] Entità 'c/ua' non presente nel grafo
+2025-11-15 14:25:59,489 | INFO | 📈 FASE 6/7: Analisi metriche vs benchmark
+2025-11-15 14:25:59,489 | INFO | 📈 Generazione analisi metriche vs benchmark
+2025-11-15 14:25:59,528 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:25:59,529 | ERROR | ❌ Errore generazione analisi metriche: Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01ka1hwrrve3drtm17btb4pbet` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 100000, Requested 431. Please try again in 6m12.383999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+2025-11-15 14:25:59,530 | INFO | 🚩 FASE 7/8: Risk Analysis
+2025-11-15 14:25:59,530 | INFO | 🚩 Generazione Risk Analysis
+2025-11-15 14:25:59,569 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:25:59,570 | ERROR | ❌ Errore Risk Analysis: Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01ka1hwrrve3drtm17btb4pbet` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 100000, Requested 1040. Please try again in 14m58.56s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+2025-11-15 14:25:59,571 | INFO | ✅ FASE 8/9: Feasibility Analysis
+2025-11-15 14:25:59,572 | INFO | ✅ Generazione Feasibility Analysis
+2025-11-15 14:25:59,612 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:25:59,612 | ERROR | ❌ Errore Feasibility Analysis: Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01ka1hwrrve3drtm17btb4pbet` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 100000, Requested 3303. Please try again in 47m33.792s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+2025-11-15 14:25:59,613 | INFO | 📝 FASE 9/9: Executive Summary
+2025-11-15 14:25:59,614 | INFO | 📝 Generazione Executive Summary
+2025-11-15 14:25:59,650 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-11-15 14:25:59,651 | ERROR | ❌ Errore Executive Summary: Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01ka1hwrrve3drtm17btb4pbet` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 100000, Requested 963. Please try again in 13m52.031999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+2025-11-15 14:25:59,651 | INFO | ============================================================
+2025-11-15 14:25:59,652 | INFO | ✅ ANALISI COMPLETATA IN 131.8s
+2025-11-15 14:25:59,652 | INFO | ============================================================
+2025-11-15 14:25:59,678 | INFO | 🔌 Connessione Neo4j chiusa
+2025-11-15 14:29:05,477 | INFO | ============================================================
+2025-11-15 14:29:05,478 | INFO | NUOVA SESSIONE AGENTIC KRAG
+2025-11-15 14:29:05,478 | INFO | ============================================================
+2025-11-15 14:29:05,478 | INFO | 🚀 Inizializzazione Agente KRAG
+2025-11-15 14:29:05,478 | INFO | 📡 Caricamento modello: Google - gemini-2.5-pro
+2025-11-15 14:29:05,505 | INFO | 🔧 Inizializzazione tools (Neo4j, Tavily, Scraper)
+2025-11-15 14:29:05,511 | INFO | ✅ Agente pronto per l'analisi
+2025-11-15 14:29:05,513 | INFO | 🔍 Analisi contenuto documento per deduzione entità
+2025-11-15 14:29:06,524 | WARNING | Retrying langchain_google_genai.chat_models._chat_with_retry.<locals>._chat_with_retry in 2.0 seconds as it raised ResourceExhausted: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/usage?tab=rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 50, model: gemini-2.5-pro
+Please retry in 53.575355303s. [links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+}
+, violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-pro"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 50
+}
+, retry_delay {
+  seconds: 53
+}
+].
+2025-11-15 14:29:08,601 | WARNING | Retrying langchain_google_genai.chat_models._chat_with_retry.<locals>._chat_with_retry in 4.0 seconds as it raised ResourceExhausted: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/usage?tab=rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 50, model: gemini-2.5-pro
+Please retry in 51.499561289s. [links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+}
+, violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-pro"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 50
+}
+, retry_delay {
+  seconds: 51
+}
+].
+2025-11-15 14:29:12,662 | WARNING | Retrying langchain_google_genai.chat_models._chat_with_retry.<locals>._chat_with_retry in 8.0 seconds as it raised ResourceExhausted: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/usage?tab=rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 50, model: gemini-2.5-pro
+Please retry in 47.43468586s. [links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+}
+, violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-pro"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 50
+}
+, retry_delay {
+  seconds: 47
+}
+].
+2025-11-15 14:29:20,726 | WARNING | Retrying langchain_google_genai.chat_models._chat_with_retry.<locals>._chat_with_retry in 16.0 seconds as it raised ResourceExhausted: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/usage?tab=rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 50, model: gemini-2.5-pro
+Please retry in 39.373025558s. [links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+}
+, violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-pro"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 50
+}
+, retry_delay {
+  seconds: 39
+}
+].
+2025-11-15 14:29:36,801 | WARNING | ⚠️ Impossibile dedurre entità: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/usage?tab=rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 50, model: gemini-2.5-pro
+Please retry in 23.298476796s. [links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+}
+, violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-pro"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 50
+}
+, retry_delay {
+  seconds: 23
+}
+]
+2025-11-15 14:29:36,803 | INFO | 🔌 Connessione Neo4j chiusa
