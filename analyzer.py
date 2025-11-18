@@ -1569,52 +1569,53 @@ Ignora i campi se non trovi informazioni specifiche."""),
         return final_metrics
 
     def generate_requirements_match_report(self, entity_name: str, requirements_list: str,
-                                               rag_context: str) -> str:
+                                           rag_context: str) -> str:
         """
         Genera un report di Gap Analysis basato ESCLUSIVAMENTE sui documenti interni.
-        Nessun dato esterno, nessun fact-checking web.
+        Include riferimenti ai file sorgente.
         """
         self.log_status("📋 Generazione Gap Analysis (Solo Documenti Interni)", "info")
 
         prompt = ChatPromptTemplate.from_messages([
-                ("system", """Sei un Auditor Tecnico rigoroso. 
-    Stai eseguendo una **Gap Analysis** per verificare se i documenti forniti soddisfano una lista di requisiti.
+            ("system", """Sei un Auditor Tecnico rigoroso. 
+Stai eseguendo una **Gap Analysis** per verificare se i documenti forniti soddisfano una lista di requisiti.
 
-    **FONTI DATI**:
-    Usa ESCLUSIVAMENTE il "Contesto Documentale" fornito qui sotto. Non usare conoscenze esterne o cercare sul web.
+**FONTI DATI**:
+Usa ESCLUSIVAMENTE il "Contesto Documentale" fornito. 
+Il contesto contiene marcatori come `--- FILE: nome_file.pdf ---`. 
+**È OBBLIGATORIO** citare il nome del file ogni volta che trovi un'evidenza.
 
-    **COMPITO**:
-    Per ogni requisito nella lista:
-    1. Cerca prove esplicite nel contesto documentale.
-    2. Determina lo stato: ✅ SODDISFATTO, ⚠️ PARZIALE, o ❌ NON TROVATO.
-    3. Cita la frase esatta dal documento che prova la soddisfazione.
+**COMPITO**:
+Per ogni requisito nella lista:
+1. Cerca prove esplicite nel contesto documentale.
+2. Determina lo stato: ✅ SODDISFATTO, ⚠️ PARZIALE, o ❌ NON TROVATO.
+3. Cita la frase esatta e la **FONTE** (nome del file).
 
-    **OUTPUT RICHIESTO (Markdown)**:
+**OUTPUT RICHIESTO (Markdown)**:
 
-    # 🧩 Gap Analysis Record: {entity}
+# 🧩 Gap Analysis Record
 
-    ## 📊 Sintesi
-    [Breve riassunto della copertura: es. "Documentazione copre 8/10 requisiti..."]
+## 📊 Sintesi
+[Breve riassunto della copertura: es. "La documentazione (in particolare 'technical_specs.pdf') copre 8/10 requisiti..."]
 
-    ## 📝 Dettaglio Verifica
+## 📝 Dettaglio Verifica
 
-    | Requisito | Stato | Evidenza nel Documento | Note/Gap |
-    |-----------|-------|------------------------|----------|
-    | [Nome Req] | [Stato] | [Citazione Esatta o "Nessuna menzione"] | [Dettagli] |
-    ...
+| Requisito | Stato | Evidenza nel Documento | Fonte (File) | Note/Gap |
+|-----------|-------|------------------------|--------------|----------|
+| [Nome Req] | [Stato] | [Citazione Esatta] | **[Nome File]** | [Dettagli] |
+...
 
-    ## 🏁 Conclusioni
-    [Verdetto basato solo sui documenti]
-    """),
-                ("user", """Entità: {entity}
+## 🚩 Conclusioni
+[Verdetto basato solo sui documenti]
+"""),
+            ("user", """
+--- LISTA REQUISITI ---
+{requirements}
 
-    --- LISTA REQUISITI ---
-    {requirements}
-
-    --- CONTESTO DOCUMENTALE (RAG) ---
-    {rag}
-    """)
-            ])
+--- CONTESTO DOCUMENTALE (RAG) ---
+{rag}
+""")
+        ])
 
         chain = prompt | self.llm_pro | StrOutputParser()
 
@@ -1628,8 +1629,7 @@ Ignora i campi se non trovi informazioni specifiche."""),
             return report
         except Exception as e:
             self.log_status(f"❌ Errore Gap Analysis: {e}", "error")
-            return f"Errore: {e}"
-
+            return f"Errore durante la generazione del report: {e}"
 
     def generate_gap_analysis(self, entity_name: str, requirements: str, document_text: str, rag_context: str) -> str:
         """

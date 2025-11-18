@@ -143,7 +143,12 @@ def process_documents(files_or_text, _embeddings, _splitter) -> Tuple[object, st
             extracted_text = extract_text_from_file(uploaded_file)
 
             if extracted_text:
-                full_text_list.append(extracted_text)
+                # --- MODIFICA IMPORTANTE: INSERIAMO IL NOME DEL FILE NEL TESTO ---
+                # Questo permette all'LLM di citare la fonte nel report
+                text_with_header = f"\n\n--- FILE: {uploaded_file.name} ---\n{extracted_text}"
+
+                full_text_list.append(text_with_header)
+
                 # Creiamo il Document object per LangChain
                 all_documents.append(Document(
                     page_content=extracted_text,
@@ -154,7 +159,9 @@ def process_documents(files_or_text, _embeddings, _splitter) -> Tuple[object, st
         st.error("❌ Nessun documento valido processato")
         return None, None
 
-    full_text = "\n\n--- NUOVO DOCUMENTO ---\n\n".join(full_text_list)
+    # Uniamo tutto il testo
+    full_text = "\n".join(full_text_list)
+
     chunks = _splitter.split_documents(all_documents)
     vectordb = Chroma.from_documents(documents=chunks, embedding=_embeddings)
 
@@ -399,14 +406,14 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
 
         if not doc_retriever or not document_text: st.stop()
 
-        # 4. Deduzione Entità (CORRETTA PER EVITARE ERRORI IN MATCHING MODE)
+        # 4. Deduzione Entità
         entity_to_analyze = entita_utente.strip()
         should_deduce = False
 
         if analysis_mode == "Matching Requisiti Tecnici":
-            # FIX: In matching mode NON deduciamo nulla per evitare errori 500 e risparmiare token
+            # FIX: In matching mode NON deduciamo nulla e usiamo un placeholder generico
             should_deduce = False
-            entity_to_analyze = "Gap Analysis Documentale"
+            entity_to_analyze = "Gap Analysis"
         elif use_auto_detect and not entity_to_analyze:
             # In standard mode, deduciamo se richiesto
             should_deduce = True
@@ -447,43 +454,83 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
         # 6. RENDERING RISULTATI
         # ====================================================================
 
+        # A) MODALITÀ MATCHING REQUISITI
         if analysis_mode == "Matching Requisiti Tecnici":
+            # Titolo PULITO (senza nome entità)
             st.markdown(f"# 📋 Report Matching Requisiti")
             st.caption(f"Analisi completata in {elapsed:.1f} secondi su documenti interni.")
 
-            # Mostriamo SOLO il report generato
+            # Il report specifico è salvato in 'executive_summary' per questa modalità
             st.markdown(result.get("executive_summary", ""))
 
-            # NIENTE Fact-Checking, NIENTE Grafi, NIENTE Metriche Web.
+            # QUI: Nessun Fact-Checking Web, Nessun Grafo, Nessuna Metrica Web.
+            # (Nota: abbiamo rimosso render_fact_checking_table per questa modalità come richiesto)
 
-            # B) MODALITÀ STANDARD (VC DUE DILIGENCE)
+        # B) MODALITÀ STANDARD (VC DUE DILIGENCE)
         else:
             st.markdown("# 📊 Investment Analysis Report")
-            # ... (Tutto il codice di rendering standard rimane identico) ...
             st.caption(f"Analisi completata in {elapsed:.1f} secondi")
 
+            # --- 1. Metriche VC ---
             with metrics_placeholder.container():
-                # ... (Codice visualizzazione metriche) ...
                 vc_metrics = result.get("vc_metrics")
                 if vc_metrics:
-                    # ... (Tabella metriche) ...
-                    pass  # (Mantieni il codice esistente qui)
+                    st.markdown("## 📊 Metriche VC Estratte")
+                    tab_saas, tab_traction, tab_market, tab_team, tab_fundraising = st.tabs([
+                        "💰 SaaS", "📈 Traction", "🌍 Market", "👥 Team", "💵 Fundraising"
+                    ])
 
+                    with tab_saas:
+                        if vc_metrics.saas_metrics:
+                            m = vc_metrics.saas_metrics
+                            c1, c2, c3 = st.columns(3)
+                            c1.metric("ARR", f"${m.arr}M" if m.arr else "-")
+                            c1.metric("Growth", f"{m.revenue_growth_rate}%" if m.revenue_growth_rate else "-")
+                            c2.metric("LTV/CAC", f"{m.ltv_cac_ratio}x" if m.ltv_cac_ratio else "-")
+                            c2.metric("Net Retention", f"{m.net_retention_rate}%" if m.net_retention_rate else "-")
+                            c3.metric("Runway", f"{m.runway_months} mo" if m.runway_months else "-")
+                        else:
+                            st.info("Nessuna metrica SaaS")
+
+                    with tab_traction:
+                        if vc_metrics.traction_metrics:
+                            m = vc_metrics.traction_metrics
+                            c1, c2 = st.columns(2)
+                            c1.metric("Utenti", f"{m.total_users}" if m.total_users else "-")
+                            c2.metric("NPS", f"{m.nps_score}" if m.nps_score else "-")
+                        else:
+                            st.info("Nessuna metrica Traction")
+
+                    # ... (Altri tab simili se necessario per Market, Team, Fundraising) ...
+                    with tab_team:
+                        if vc_metrics.team_metrics and vc_metrics.team_metrics.founders:
+                            for f in vc_metrics.team_metrics.founders:
+                                st.markdown(f"**{f.name}** - {f.role}")
+                                st.caption(f"{f.background}")
+                        else:
+                            st.info("Info team mancanti")
+
+            # --- 2. Report Testuali ---
             with results_placeholder.container():
                 tab_summary, tab_risk, tab_feasibility, tab_facts = st.tabs([
                     "📋 Executive Summary", "🚩 Risk Analysis", "✅ Feasibility", "🔍 Fact-Check"
                 ])
 
-                with tab_summary: st.markdown(result.get("executive_summary", ""))
-                with tab_risk: st.markdown(result.get("risk_analysis", ""))
-                with tab_feasibility: st.markdown(result.get("feasibility_analysis", ""))
-                with tab_facts: render_fact_checking_table(result.get("fact_checking_table", []))
+                with tab_summary:
+                    st.markdown(result.get("executive_summary", ""))
+                with tab_risk:
+                    st.markdown(result.get("risk_analysis", ""))
+                with tab_feasibility:
+                    st.markdown(result.get("feasibility_analysis", ""))
+                with tab_facts:
+                    render_fact_checking_table(result.get("fact_checking_table", []))
 
                 st.markdown("---")
                 st.markdown("### 📈 Analisi Metriche vs Benchmark")
                 st.markdown(result.get("metrics_analysis", ""))
 
-            # --- GRAFO SOLO IN STANDARD ---
+            # --- 7. GRAFO (SOLO IN STANDARD) ---
+            # Spostato dentro l'ELSE per apparire solo in modalità standard
             with graph_placeholder.container():
                 st.markdown("## 🕸️ Knowledge Graph")
                 if "graph_data" in result:
@@ -492,16 +539,6 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                         result["graph_data"]["edges"],
                         entity_to_analyze
                     )
-
-        # --- 7. GRAFO (Comune a entrambe le modalità) ---
-        with graph_placeholder.container():
-            st.markdown("## 🕸️ Knowledge Graph")
-            if "graph_data" in result:
-                render_knowledge_graph(
-                    result["graph_data"]["nodes"],
-                    result["graph_data"]["edges"],
-                    entity_to_analyze
-                )
 
         # --- 8. METADATA & DOWNLOAD ---
         render_metadata_sidebar(result.get("metadata", {}))
