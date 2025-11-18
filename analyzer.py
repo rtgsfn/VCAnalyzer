@@ -1232,216 +1232,136 @@ Investment Committee Memo:""")
             self.log_status(f"❌ Errore Feasibility Analysis: {e}", "error")
             return f"## ❌ Errore Feasibility Analysis\n\n{e}"
 
+
+    # ============================================================================
+    # ORCHESTRATORE PRINCIPALE (Aggiornato)
+    # ============================================================================
     def run_full_analysis_streaming(self, entita_focus: str, document_text: str, doc_retriever,
                                     is_deep_search: bool = False, requirements_text: str = None) -> dict:
         """
-        NUOVA VERSIONE con streaming progressivo dei risultati.
-        Restituisce risultati incrementali per evitare timeout.
-
-        Returns dict con chiavi progressive:
-            - "metrics": VCMetricsProfile
-            - "fact_checking_table": List[dict]
-            - "metrics_analysis": str (markdown)
-            - "risk_analysis": str (markdown)
-            - "feasibility_analysis": str (markdown)
-            - "executive_summary": str (markdown)
-            - "graph_data": {"nodes": [...], "edges": [...]}
-            - "metadata": {...}
+        Esegue l'analisi completa.
         """
         self.log_status("=" * 60, "info")
-        self.log_status(f"🎯 INIZIO ANALISI STREAMING: '{entita_focus}'", "info")
-        self.log_status("=" * 60, "info")
+        self.log_status(f"🎯 AVVIO ANALISI: '{entita_focus}'", "info")
 
-        analysis_start = time.time()
         results = {}
+        analysis_start = time.time()
 
         try:
             # ====================================================================
-            # FASE 1: Verifica entità nel documento
-            # ====================================================================
-            self.log_status("🔍 FASE 1/7: Verifica presenza entità", "info")
-            entity_analysis = self.deduce_entity_from_document(document_text)
-            results["entity_analysis"] = entity_analysis
-
-            if entity_analysis["entity_found"] and entity_analysis["entity_name"].lower() != entita_focus.lower():
-                self.log_status(f"⚠️ Entità richiesta diversa da documento", "warning")
-
-            # ====================================================================
-            # FASE 2: Estrazione Metriche VC (dal Documento)
-            # ====================================================================
-            self.log_status("📊 FASE 2/7: Estrazione metriche VC (Documento)", "info")
-            metrics_from_doc = self.extract_vc_metrics(document_text, entita_focus)
-            results["vc_metrics_doc_only"] = metrics_from_doc  # Salviamo per debug
-
-            # ====================================================================
-            # FASE 2.5: Arricchimento Metriche VC (dal Web)
-            # ====================================================================
-            self.log_status("🌐 FASE 2.5/7: Arricchimento metriche VC (Web)", "info")
-            vc_metrics = self.augment_vc_metrics_from_web(metrics_from_doc, entita_focus, is_deep_search)
-            results["vc_metrics"] = vc_metrics  # Questo è l'oggetto finale e unito
-
-            # ====================================================================
-            # FASE 3: RAG + Claims (Parallelo)
-            # ====================================================================
-            # ...
-            self.log_status("🔄 FASE 3/7: RAG + Estrazione Claims (parallelo)", "info")
-
-            # Logga l'inizio dei task QUI, dal thread principale
-            self.log_status("  📚 Avvio recupero RAG...", "info")
-            self.log_status("  🔬 Avvio estrazione Claims...", "info")
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                # Passa 'silent=True' per disabilitare i log interni
-                future_rag = executor.submit(self.get_document_context, doc_retriever, entita_focus, silent=True)
-                future_claims = executor.submit(self.extract_claims_from_text, document_text, silent=True)
-
-                contesto_rag = future_rag.result()
-                claims_list = future_claims.result()
-
-            self.log_status("  ✅ RAG e Claims completati.", "success")
-
-            # ====================================================================
-            # FASE 4: Fact-Checking
-            # ====================================================================
-            self.log_status("✅ FASE 4/7: Fact-Checking affermazioni", "info")
-            verified_claims = self.verify_claims_online(claims_list)
-            results["fact_checking_table"] = verified_claims
-
-            fact_checking_summary = self._build_fact_checking_context(entita_focus, verified_claims)
-
-            # ====================================================================
-            # FASE 5: Knowledge Graph (Popolamento/Aggiornamento + Query)
-            # ====================================================================
-            self.log_status(f"🕸️ FASE 5/7: Popolamento/Aggiornamento grafo da Web per '{entita_focus}'", "info")
-
-            # Eseguiamo SEMPRE il ciclo di popolamento per aggiornare il grafo con dati freschi.
-            # Questa funzione (run_population_cycle) cerca sul web (Top 10) ed estrae i fatti.
-            try:
-                successo_popolamento = self.run_population_cycle(entita_focus, is_deep_search)
-                if successo_popolamento:
-                    self.log_status("  ✅ Grafo aggiornato/popolato con successo da web.", "success")
-                else:
-                    self.log_status("  ⚠️ Popolamento web non ha prodotto nuovi fatti (o erano duplicati).", "warning")
-            except Exception as e:
-                self.log_status(f"  ❌ Errore critico durante il popolamento del grafo: {e}", "error")
-                # Non fermiamo l'analisi, continuiamo con i dati (vecchi) del grafo se esistono
-
-            # ORA, dopo il tentativo di aggiornamento, interroghiamo il grafo per il contesto finale.
-            self.log_status("  🕸️ Query del grafo (aggiornato) in corso...", "info")
-            contesto_grafo = self.get_graph_context(entita_focus)
-
-            # Recupera dati visualizzazione
-            nodes, edges = self.graph_tool.get_graph_visualization_data(entita_focus)
-            results["graph_data"] = {"nodes": nodes, "edges": edges}
-
-            # ====================================================================
-            # FASE 6: Analisi Metriche (NUOVA - Prima chiamata streaming)
+            # CASO 1: GAP ANALYSIS (MATCHING REQUISITI)
             # ====================================================================
             if requirements_text:
-                # --- MODALITÀ ANALISI REQUISITI ---
-                self.log_status("📋 FASE 6/7: Matching Requisiti Tecnici (Mode: Requirements)", "info")
+                self.log_status("📋 MODALITÀ: Gap Analysis (Solo Documenti)", "info")
 
-                # Combina i contesti esterni
-                external_data = self._build_fact_checking_context(entita_focus, verified_claims)
+                context_limit = 100000
 
-                req_report = self.generate_requirements_match_report(
+                if len(document_text) > context_limit:
+                    self.log_status("⚠️ Testo molto lungo, uso RAG + troncamento...", "warning")
+                    # Strategia ibrida: Primi 50k caratteri + Ricerca RAG specifica
+                    rag_query = f"Dettagli tecnici relativi a: {requirements_text[:500]}"
+                    docs = doc_retriever.invoke(rag_query)
+                    rag_content = "\n".join([d.page_content for d in docs])
+
+                    context_to_use = document_text[:50000] + "\n\n--- FRAMMENTI RAG EXTRA ---\n" + rag_content
+                else:
+                    self.log_status("📚 Analisi su INTERO corpus documentale", "info")
+                    context_to_use = document_text
+
+                # Generazione Report
+                gap_report = self.generate_requirements_match_report(
                     entita_focus,
                     requirements_text,
-                    contesto_rag,
-                    contesto_grafo,
-                    external_data
+                    context_to_use  # Passiamo tutto il testo, non solo il RAG
                 )
 
-                # Sostituiamo le chiavi standard con quelle specifiche o usiamo un campo 'custom_report'
-                results["executive_summary"] = req_report  # Usiamo questo slot per mostrarlo in UI
+                results["executive_summary"] = gap_report
 
-                # Pulisci gli altri slot per evitare confusione in UI
-                results["metrics_analysis"] = "Analysis skipped (Requirements Mode)"
-                results["risk_analysis"] = "Analysis skipped (Requirements Mode)"
+                # Campi vuoti per UI
+                results["vc_metrics"] = None
+                results["fact_checking_table"] = []
+                results["metrics_analysis"] = ""
+                results["risk_analysis"] = ""
                 results["feasibility_analysis"] = ""
+                results["graph_data"] = {"nodes": [], "edges": []}
+                results["entity_analysis"] = {"entity_name": entita_focus, "confidence": "manual"}
 
+            # ====================================================================
+            # CASO 2: STANDARD VC DUE DILIGENCE
+            # ====================================================================
             else:
-                self.log_status("📈 FASE 6/7: Analisi metriche vs benchmark", "info")
+                self.log_status("📊 MODALITÀ: Standard VC Due Diligence", "info")
+
+                # FASE 1: Verifica Entità
+                entity_analysis = self.deduce_entity_from_document(document_text)
+                results["entity_analysis"] = entity_analysis
+
+                # FASE 2: Metriche
+                self.log_status("📊 Estrazione metriche VC...", "info")
+                metrics_from_doc = self.extract_vc_metrics(document_text, entita_focus)
+                vc_metrics = self.augment_vc_metrics_from_web(metrics_from_doc, entita_focus, is_deep_search)
+                results["vc_metrics"] = vc_metrics
+
+                # FASE 3: RAG + Claims
+                self.log_status("🔄 Analisi Documentale Parallela...", "info")
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                    future_rag = executor.submit(self.get_document_context, doc_retriever, entita_focus, silent=True)
+                    future_claims = executor.submit(self.extract_claims_from_text, document_text, silent=True)
+
+                    contesto_rag = future_rag.result()
+                    claims_list = future_claims.result()
+
+                # FASE 4: Fact-Checking
+                self.log_status("✅ Fact-Checking affermazioni...", "info")
+                verified_claims = self.verify_claims_online(claims_list)
+                results["fact_checking_table"] = verified_claims
+                fact_checking_summary = self._build_fact_checking_context(entita_focus, verified_claims)
+
+                # FASE 5: Grafo
+                if is_deep_search:
+                    self.run_population_cycle(entita_focus, is_deep_search)
+
+                contesto_grafo = self.get_graph_context(entita_focus)
+                nodes, edges = self.graph_tool.get_graph_visualization_data(entita_focus)
+                results["graph_data"] = {"nodes": nodes, "edges": edges}
+
+                # FASE 6-9: Analisi
                 metrics_analysis = self.generate_metrics_analysis(vc_metrics)
                 results["metrics_analysis"] = metrics_analysis
 
-            # ====================================================================
-            # FASE 7: Risk Analysis (Seconda chiamata streaming)
-            # ====================================================================
-            self.log_status("🚩 FASE 7/8: Risk Analysis", "info")
-            risk_analysis = self.generate_risk_analysis(
-                entita_focus,
-                fact_checking_summary,
-                contesto_grafo,
-                metrics_analysis
-            )
-            results["risk_analysis"] = risk_analysis
+                risk_analysis = self.generate_risk_analysis(entita_focus, fact_checking_summary, contesto_grafo,
+                                                            metrics_analysis)
+                results["risk_analysis"] = risk_analysis
+
+                feasibility_analysis = self.generate_feasibility_analysis(entita_focus, contesto_rag, metrics_analysis,
+                                                                          contesto_grafo)
+                results["feasibility_analysis"] = feasibility_analysis
+
+                executive_summary = self.generate_executive_summary(entita_focus, risk_analysis, feasibility_analysis,
+                                                                    fact_checking_summary)
+                results["executive_summary"] = executive_summary
 
             # ====================================================================
-            # FASE 8: Feasibility Analysis (Terza chiamata streaming)
+            # CHIUSURA
             # ====================================================================
-            self.log_status("✅ FASE 8/9: Feasibility Analysis", "info")
-            feasibility_analysis = self.generate_feasibility_analysis(
-                entita_focus,
-                contesto_rag,
-                metrics_analysis,
-                contesto_grafo
-            )
-            results["feasibility_analysis"] = feasibility_analysis
-
-            # ====================================================================
-            # FASE 9: Executive Summary (Quarta chiamata streaming)
-            # ====================================================================
-            self.log_status("📝 FASE 9/9: Executive Summary", "info")
-            executive_summary = self.generate_executive_summary(
-                entita_focus,
-                risk_analysis,
-                feasibility_analysis,
-                fact_checking_summary
-            )
-            results["executive_summary"] = executive_summary
-
-            # ====================================================================
-            # FASE 10: Metadata finali
-            # ====================================================================
-            total_claims = len(claims_list)
-            verified_claims_count = len([c for c in verified_claims if c["status"] == "VERIFICATA"])
-            partial_claims_count = len([c for c in verified_claims if c["status"] == "PARZIALMENTE VERIFICATA"])
-
-            if total_claims > 0:
-                # Score da 0 a 1 che indica quanto il documento è stato verificato
-                fact_check_score = (verified_claims_count + (0.5 * partial_claims_count)) / total_claims
-            else:
-                fact_check_score = 0
-
-            # Contiamo quante fonti web abbiamo trovato per il grafo
-            graph_sources_count = 0
-            if "graph_data" in results and "nodes" in results["graph_data"]:
-                # Modo approssimativo: contare i nodi non-focus
-                graph_sources_count = len(results["graph_data"]["nodes"]) - 1
-
             elapsed = time.time() - analysis_start
+
+            claims_cnt = len(results.get("fact_checking_table", []))
+            verified_cnt = len([c for c in results.get("fact_checking_table", []) if c["status"] == "VERIFICATA"])
+            graph_nodes_cnt = len(results.get("graph_data", {}).get("nodes", []))
+
             results["metadata"] = {
                 "entity": entita_focus,
-                "claims_total": total_claims,
-                "claims_verified": verified_claims_count,
-                "claims_false": len([c for c in verified_claims if c["status"] == "FALSA"]),
-                "claims_partial": partial_claims_count,
-                "claims_unverifiable": len([c for c in verified_claims if c["status"] == "NON VERIFICABILE"]),
-                "graph_nodes": len(nodes),
-                "graph_edges": len(edges),
                 "analysis_time_seconds": round(elapsed, 2),
-
-                # --- NUOVI CAMPI CONFIDENCE ---
-                "confidence_entity": entity_analysis.get("confidence", "low"),
-                "confidence_fact_check_score": fact_check_score,
-                "confidence_graph_sources": graph_sources_count
+                "claims_total": claims_cnt,
+                "claims_verified": verified_cnt,
+                "graph_nodes": graph_nodes_cnt,
+                "confidence_entity": results.get("entity_analysis", {}).get("confidence", "N/A"),
+                "confidence_fact_check_score": verified_cnt / claims_cnt if claims_cnt > 0 else 0,
+                "confidence_graph_sources": 0
             }
 
-            self.log_status("=" * 60, "info")
-            self.log_status(f"✅ ANALISI COMPLETATA IN {elapsed:.1f}s", "success")
-            self.log_status("=" * 60, "info")
-
+            self.log_status(f"✅ Analisi completata in {elapsed:.1f}s", "success")
             return results
 
         except Exception as e:
@@ -1450,6 +1370,7 @@ Investment Committee Memo:""")
             self.logger.error(traceback.format_exc())
             return {
                 "error": str(e),
+                "executive_summary": f"### ❌ Errore durante l'analisi\n\n{str(e)}",
                 "metadata": {"error": str(e)}
             }
 
@@ -1648,122 +1569,132 @@ Ignora i campi se non trovi informazioni specifiche."""),
         return final_metrics
 
     def generate_requirements_match_report(self, entity_name: str, requirements_list: str,
-                                               rag_context: str, graph_context: str, fact_check_context: str) -> str:
+                                               rag_context: str) -> str:
         """
-        Genera un report focalizzato ESCLUSIVAMENTE sul matching di requisiti tecnici.
+        Genera un report di Gap Analysis basato ESCLUSIVAMENTE sui documenti interni.
+        Nessun dato esterno, nessun fact-checking web.
         """
-        self.log_status("📋 Generazione Analisi Compatibilità Requisiti", "info")
+        self.log_status("📋 Generazione Gap Analysis (Solo Documenti Interni)", "info")
+
         prompt = ChatPromptTemplate.from_messages([
-                ("system", """Sei un Solution Architect Senior che valuta una tecnologia/startup per un cliente.
-    Il cliente ha fornito una "Lista di Necessità/Requisiti Tecnici".
-    Il tuo compito è analizzare se l'entità soddisfa ogni punto, usando le prove fornite.
+                ("system", """Sei un Auditor Tecnico rigoroso. 
+    Stai eseguendo una **Gap Analysis** per verificare se i documenti forniti soddisfano una lista di requisiti.
 
-    **INPUT:**
-    1. **Lista Requisiti**: Cosa cerca il cliente.
-    2. **Contesto Documentale (RAG)**: Cosa dice la startup di sé.
-    3. **Fact-Checking & Grafo**: Verifiche esterne e storia.
+    **FONTI DATI**:
+    Usa ESCLUSIVAMENTE il "Contesto Documentale" fornito qui sotto. Non usare conoscenze esterne o cercare sul web.
 
-    **OUTPUT RICHIESTO (Markdown):**
+    **COMPITO**:
+    Per ogni requisito nella lista:
+    1. Cerca prove esplicite nel contesto documentale.
+    2. Determina lo stato: ✅ SODDISFATTO, ⚠️ PARZIALE, o ❌ NON TROVATO.
+    3. Cita la frase esatta dal documento che prova la soddisfazione.
 
-    ## 🎯 Analisi Compatibilità: [Nome Entità]
+    **OUTPUT RICHIESTO (Markdown)**:
 
-    ### 📋 Sintesi Copertura
-    [Breve paragrafo: L'entità è un buon match? Copertura % stimata dei requisiti.]
+    # 🧩 Gap Analysis Record: {entity}
 
-    ### 🧩 Analisi Requisito per Requisito
+    ## 📊 Sintesi
+    [Breve riassunto della copertura: es. "Documentazione copre 8/10 requisiti..."]
 
-    Per ogni requisito nella lista, genera:
+    ## 📝 Dettaglio Verifica
 
-    #### [Nome Requisito]
-    - **Stato**: ✅ Soddisfatto / ⚠️ Parziale / ❌ Non Soddisfatto / ❓ Non Specificato
-    - **Analisi**: [Spiegazione tecnica basata sui documenti]
-    - **Evidenze**:
-      - *Doc*: [Cita evidenze dal RAG se presenti]
-      - *Web/Graph*: [Cita conferme o smentite pubbliche]
-    - **Gap Rilevati**: [Se parziale o mancante, spiega cosa manca]
+    | Requisito | Stato | Evidenza nel Documento | Note/Gap |
+    |-----------|-------|------------------------|----------|
+    | [Nome Req] | [Stato] | [Citazione Esatta o "Nessuna menzione"] | [Dettagli] |
+    ...
 
-    ### 💡 Note Tecniche & Integrazione
-    [Considerazioni sull'integrazione tecnica, API, o stack tecnologico dedotte]
-
-    ### 🏁 Verdetto Tecnico
-    [Raccomandazione basata puramente sui requisiti: Proceed / PoC Required / Reject]
-
-    **REGOLE:**
-    - Sii estremamente tecnico e diretto.
-    - Se un requisito non è menzionato nei documenti, segnalalo come "Non Specificato".
-    - Usa i dati del fact-checking per validare le claim tecniche (es. "Dicono di avere ISO27001, ma non è verificato").
+    ## 🏁 Conclusioni
+    [Verdetto basato solo sui documenti]
     """),
                 ("user", """Entità: {entity}
 
-    --- LISTA NECESSITÀ CLIENTE ---
+    --- LISTA REQUISITI ---
     {requirements}
 
-    --- CONTESTO RAG (Documenti) ---
+    --- CONTESTO DOCUMENTALE (RAG) ---
     {rag}
-
-    --- DATI ESTERNI (Fact-Check + Grafo) ---
-    {external}
-
-    Report Tecnico:""")
+    """)
             ])
 
         chain = prompt | self.llm_pro | StrOutputParser()
 
         try:
             report = chain.invoke({
-                 "entity": entity_name,
-                 "requirements": requirements_list,
-                 "rag": rag_context,
-                 "external": fact_check_context + "\n" + graph_context
-                })
-            self.log_status("✅ Report Requisiti generato", "success")
+                "entity": entity_name,
+                "requirements": requirements_list,
+                "rag": rag_context
+            })
+            self.log_status("✅ Gap Analysis completata", "success")
             return report
         except Exception as e:
-            self.log_status(f"❌ Errore report requisiti: {e}", "error")
+            self.log_status(f"❌ Errore Gap Analysis: {e}", "error")
             return f"Errore: {e}"
 
-    def generate_requirements_match_report(self, entity_name: str, requirements_list: str,
-                                               rag_context: str, graph_context: str, fact_check_context: str) -> str:
-        """Genera report di compatibilità requisiti."""
-        self.log_status("📋 Generazione Analisi Compatibilità Requisiti", "info")
+
+    def generate_gap_analysis(self, entity_name: str, requirements: str, document_text: str, rag_context: str) -> str:
+        """
+        Agente Specializzato: Confronta Requisiti vs Documenti.
+        """
+        self.log_status("🕵️‍♂️ Avvio Agente Gap Analysis...", "info")
 
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """Sei un Solution Architect Senior.
-    Analizza se l'entità soddisfa la "Lista Requisiti" del cliente usando i documenti e i dati forniti.
+            ("system", """Sei un Auditor Tecnico esperto.
+Il tuo compito è eseguire una **GAP ANALYSIS** rigorosa verificando se i requisiti richiesti sono presenti nella documentazione fornita.
 
-    OUTPUT (Markdown):
-    ## 🎯 Analisi Compatibilità: {entity}
+INPUT:
+1. **LISTA REQUISITI**: Cosa cerca il cliente.
+2. **DOCUMENTI FORNITI**: Pitch deck o documentazione tecnica della startup (RAG + Testo).
 
-    ### 📋 Sintesi
-    [Breve riassunto copertura %]
+ISTRUZIONI:
+- Per OGNI requisito nella lista, cerca prove specifiche nei documenti.
+- Sii severo: se non è scritto esplicitamente, è un GAP (o "Non Specificato").
+- Non inventare nulla. Basati solo sul testo fornito.
 
-    ### 🧩 Analisi Dettagliata
-    Per ogni requisito:
-    #### [Nome Requisito]
-    - **Stato**: ✅ Soddisfatto / ⚠️ Parziale / ❌ No / ❓ Ignoto
-    - **Evidenze**: [Citare fonti DOC o WEB]
-    - **Analisi**: [Dettagli tecnici]
+OUTPUT FORMATO (Markdown):
 
-    ### 🏁 Verdetto
-    [Procedere o no?]
-    """),
-                ("user", """Entità: {entity}
-    --- LISTA REQUISITI ---
-    {requirements}
-    --- DOCS (RAG) ---
-    {rag}
-    --- DATI ESTERNI ---
-    {external}
-    """)
-            ])
+# 🧩 GAP ANALYSIS RECORD: {entity}
+
+## 📊 Sintesi Copertura
+[Breve riassunto: es. "Il documento copre il 70% dei requisiti tecnici..."]
+
+## 📝 Dettaglio Verifica
+
+| Requisito | Stato | Evidenza dal Documento | Gap / Note |
+|-----------|-------|------------------------|------------|
+| [Nome Req] | ✅ SODDISFATTO <br> ⚠️ PARZIALE <br> ❌ NON SODDISFATTO | [Citare esattamente la frase dal documento] | [Spiegare cosa manca] |
+...
+
+## 🚩 Conclusioni
+[Verdetto finale: Procedere o richiedere integrazioni?]
+"""),
+            ("user", """Entità: {entity}
+
+--- LISTA REQUISITI DA VERIFICARE ---
+{requirements}
+
+--- CONTESTO DOCUMENTALE (Estratti Rilevanti) ---
+{rag}
+
+--- TESTO DOCUMENTO (Prime parti) ---
+{doc_head}
+""")
+        ])
 
         chain = prompt | self.llm_pro | StrOutputParser()
-        return chain.invoke({
-            "entity": entity_name,
-            "requirements": requirements_list,
-            "rag": rag_context,
-            "external": fact_check_context + "\n" + graph_context
-        })
+
+        try:
+            # Usiamo sia il contesto RAG specifico (se c'è) sia l'inizio del documento per sicurezza
+            report = chain.invoke({
+                "entity": entity_name,
+                "requirements": requirements,
+                "rag": rag_context,
+                "doc_head": document_text[:15000]  # Passiamo un ampio chunk di testo diretto
+            })
+            self.log_status("✅ Gap Analysis completata", "success")
+            return report
+        except Exception as e:
+            self.log_status(f"❌ Errore Gap Analysis: {e}", "error")
+            return f"Errore durante l'analisi: {e}"
 
 def main():
     """Test CLI."""
