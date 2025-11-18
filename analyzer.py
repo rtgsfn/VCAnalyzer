@@ -1232,7 +1232,8 @@ Investment Committee Memo:""")
             self.log_status(f"❌ Errore Feasibility Analysis: {e}", "error")
             return f"## ❌ Errore Feasibility Analysis\n\n{e}"
 
-    def run_full_analysis_streaming(self, entita_focus: str, document_text: str, doc_retriever, is_deep_search: bool = False) -> dict:
+    def run_full_analysis_streaming(self, entita_focus: str, document_text: str, doc_retriever,
+                                    is_deep_search: bool = False, requirements_text: str = None) -> dict:
         """
         NUOVA VERSIONE con streaming progressivo dei risultati.
         Restituisce risultati incrementali per evitare timeout.
@@ -1336,9 +1337,33 @@ Investment Committee Memo:""")
             # ====================================================================
             # FASE 6: Analisi Metriche (NUOVA - Prima chiamata streaming)
             # ====================================================================
-            self.log_status("📈 FASE 6/7: Analisi metriche vs benchmark", "info")
-            metrics_analysis = self.generate_metrics_analysis(vc_metrics)
-            results["metrics_analysis"] = metrics_analysis
+            if requirements_text:
+                # --- MODALITÀ ANALISI REQUISITI ---
+                self.log_status("📋 FASE 6/7: Matching Requisiti Tecnici (Mode: Requirements)", "info")
+
+                # Combina i contesti esterni
+                external_data = self._build_fact_checking_context(entita_focus, verified_claims)
+
+                req_report = self.generate_requirements_match_report(
+                    entita_focus,
+                    requirements_text,
+                    contesto_rag,
+                    contesto_grafo,
+                    external_data
+                )
+
+                # Sostituiamo le chiavi standard con quelle specifiche o usiamo un campo 'custom_report'
+                results["executive_summary"] = req_report  # Usiamo questo slot per mostrarlo in UI
+
+                # Pulisci gli altri slot per evitare confusione in UI
+                results["metrics_analysis"] = "Analysis skipped (Requirements Mode)"
+                results["risk_analysis"] = "Analysis skipped (Requirements Mode)"
+                results["feasibility_analysis"] = ""
+
+            else:
+                self.log_status("📈 FASE 6/7: Analisi metriche vs benchmark", "info")
+                metrics_analysis = self.generate_metrics_analysis(vc_metrics)
+                results["metrics_analysis"] = metrics_analysis
 
             # ====================================================================
             # FASE 7: Risk Analysis (Seconda chiamata streaming)
@@ -1621,6 +1646,124 @@ Ignora i campi se non trovi informazioni specifiche."""),
         final_metrics = self._merge_vc_profiles(metrics_from_doc, metrics_from_web)
 
         return final_metrics
+
+    def generate_requirements_match_report(self, entity_name: str, requirements_list: str,
+                                               rag_context: str, graph_context: str, fact_check_context: str) -> str:
+        """
+        Genera un report focalizzato ESCLUSIVAMENTE sul matching di requisiti tecnici.
+        """
+        self.log_status("📋 Generazione Analisi Compatibilità Requisiti", "info")
+        prompt = ChatPromptTemplate.from_messages([
+                ("system", """Sei un Solution Architect Senior che valuta una tecnologia/startup per un cliente.
+    Il cliente ha fornito una "Lista di Necessità/Requisiti Tecnici".
+    Il tuo compito è analizzare se l'entità soddisfa ogni punto, usando le prove fornite.
+
+    **INPUT:**
+    1. **Lista Requisiti**: Cosa cerca il cliente.
+    2. **Contesto Documentale (RAG)**: Cosa dice la startup di sé.
+    3. **Fact-Checking & Grafo**: Verifiche esterne e storia.
+
+    **OUTPUT RICHIESTO (Markdown):**
+
+    ## 🎯 Analisi Compatibilità: [Nome Entità]
+
+    ### 📋 Sintesi Copertura
+    [Breve paragrafo: L'entità è un buon match? Copertura % stimata dei requisiti.]
+
+    ### 🧩 Analisi Requisito per Requisito
+
+    Per ogni requisito nella lista, genera:
+
+    #### [Nome Requisito]
+    - **Stato**: ✅ Soddisfatto / ⚠️ Parziale / ❌ Non Soddisfatto / ❓ Non Specificato
+    - **Analisi**: [Spiegazione tecnica basata sui documenti]
+    - **Evidenze**:
+      - *Doc*: [Cita evidenze dal RAG se presenti]
+      - *Web/Graph*: [Cita conferme o smentite pubbliche]
+    - **Gap Rilevati**: [Se parziale o mancante, spiega cosa manca]
+
+    ### 💡 Note Tecniche & Integrazione
+    [Considerazioni sull'integrazione tecnica, API, o stack tecnologico dedotte]
+
+    ### 🏁 Verdetto Tecnico
+    [Raccomandazione basata puramente sui requisiti: Proceed / PoC Required / Reject]
+
+    **REGOLE:**
+    - Sii estremamente tecnico e diretto.
+    - Se un requisito non è menzionato nei documenti, segnalalo come "Non Specificato".
+    - Usa i dati del fact-checking per validare le claim tecniche (es. "Dicono di avere ISO27001, ma non è verificato").
+    """),
+                ("user", """Entità: {entity}
+
+    --- LISTA NECESSITÀ CLIENTE ---
+    {requirements}
+
+    --- CONTESTO RAG (Documenti) ---
+    {rag}
+
+    --- DATI ESTERNI (Fact-Check + Grafo) ---
+    {external}
+
+    Report Tecnico:""")
+            ])
+
+        chain = prompt | self.llm_pro | StrOutputParser()
+
+        try:
+            report = chain.invoke({
+                 "entity": entity_name,
+                 "requirements": requirements_list,
+                 "rag": rag_context,
+                 "external": fact_check_context + "\n" + graph_context
+                })
+            self.log_status("✅ Report Requisiti generato", "success")
+            return report
+        except Exception as e:
+            self.log_status(f"❌ Errore report requisiti: {e}", "error")
+            return f"Errore: {e}"
+
+    def generate_requirements_match_report(self, entity_name: str, requirements_list: str,
+                                               rag_context: str, graph_context: str, fact_check_context: str) -> str:
+        """Genera report di compatibilità requisiti."""
+        self.log_status("📋 Generazione Analisi Compatibilità Requisiti", "info")
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """Sei un Solution Architect Senior.
+    Analizza se l'entità soddisfa la "Lista Requisiti" del cliente usando i documenti e i dati forniti.
+
+    OUTPUT (Markdown):
+    ## 🎯 Analisi Compatibilità: {entity}
+
+    ### 📋 Sintesi
+    [Breve riassunto copertura %]
+
+    ### 🧩 Analisi Dettagliata
+    Per ogni requisito:
+    #### [Nome Requisito]
+    - **Stato**: ✅ Soddisfatto / ⚠️ Parziale / ❌ No / ❓ Ignoto
+    - **Evidenze**: [Citare fonti DOC o WEB]
+    - **Analisi**: [Dettagli tecnici]
+
+    ### 🏁 Verdetto
+    [Procedere o no?]
+    """),
+                ("user", """Entità: {entity}
+    --- LISTA REQUISITI ---
+    {requirements}
+    --- DOCS (RAG) ---
+    {rag}
+    --- DATI ESTERNI ---
+    {external}
+    """)
+            ])
+
+        chain = prompt | self.llm_pro | StrOutputParser()
+        return chain.invoke({
+            "entity": entity_name,
+            "requirements": requirements_list,
+            "rag": rag_context,
+            "external": fact_check_context + "\n" + graph_context
+        })
 
 def main():
     """Test CLI."""
