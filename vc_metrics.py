@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from enum import Enum
 
-
 # ============================================================================
 # ENUMERAZIONI PER CLASSIFICAZIONE
 # ============================================================================
@@ -345,3 +344,58 @@ def get_benchmark_assessment(metric_name: str, value: float, stage: str = "serie
             return "Poor"
 
     return "Unknown"
+
+
+# Aggiungi questi codici in fondo a vc_metrics.py
+
+# ============================================================================
+# SCHEMI SPECIFICI PER SETTORE
+# ============================================================================
+
+# Pharma & Biotech Metrics
+class PharmaRDMentrics(BaseModel):
+    clinical_trial_phase: Optional[str] = Field(None, description="Fase di trial clinico attuale (Preclinical, I, II, III, NDA/BLA).")
+    fda_approval_status: Optional[str] = Field(None, description="Stato di approvazione regolatoria (Approved, Pending, Denied).")
+    time_to_market_years: Optional[float] = Field(None, description="Tempo stimato o trascorso per l'approvazione (anni).")
+    patent_expiry_date: Optional[str] = Field(None, description="Data di scadenza del brevetto chiave.")
+    efficacy_data: Optional[str] = Field(None, description="Dati chiave di efficacia (es. ORR %, PFS months).")
+    rd_burn_rate_m: Optional[float] = Field(None, description="Burn rate mensile per R&D in $M.")
+
+class PharmaMetricsProfile(BaseModel):
+    """Profilo di metriche per Pharma/Biotech."""
+    entity_name: str
+    rd_metrics: Optional[PharmaRDMentrics] = None
+    team_metrics: Optional[TeamMetrics] = None # Riutilizzo del Team (chi ha fondato, background)
+    fundraising_metrics: Optional[FundraisingMetrics] = None # Riutilizzo del Fundraising
+
+# Real Estate Metrics
+class REFinancialMetrics(BaseModel):
+    cap_rate: Optional[float] = Field(None, description="Capitalization Rate (Tasso di rendimento annuale) (%).")
+    cash_on_cash: Optional[float] = Field(None, description="Cash-on-Cash Return (%).")
+    irr: Optional[float] = Field(None, description="Internal Rate of Return (IRR) (%).")
+    occupancy_rate: Optional[float] = Field(None, description="Tasso di occupazione attuale (%).")
+    net_operating_income: Optional[float] = Field(None, description="Reddito Operativo Netto (NOI) in $M.")
+
+class REMetricsProfile(BaseModel):
+    """Profilo di metriche per Real Estate."""
+    entity_name: str
+    re_metrics: Optional[REFinancialMetrics] = None
+    market_metrics: Optional[MarketMetrics] = None # Riutilizzo del Market (TAM, SOM)
+    team_metrics: Optional[TeamMetrics] = None # Riutilizzo
+
+# Legal / M&A Metrics
+class LegalRiskMetrics(BaseModel):
+    gdpr_compliance: Optional[bool] = Field(None, description="Verifica esplicita di conformità GDPR/CCPA.")
+    iso_soc_certified: Optional[str] = Field(None, description="Certificazioni di sicurezza/compliance (es. ISO 27001, SOC 2).")
+    pending_litigation_count: Optional[int] = Field(None, description="Numero di contenziosi legali pendenti.")
+    ip_status: Optional[str] = Field(None, description="Stato della Proprietà Intellettuale (Brevettato, In attesa, Nessuno).")
+    change_of_control_clause: Optional[bool] = Field(None, description="Presenza di clausole di Change of Control in contratti chiave.")
+
+class LegalMetricsProfile(BaseModel):
+    """Profilo di metriche per Legal/M&A Due Diligence."""
+    entity_name: str
+    legal_metrics: Optional[LegalRiskMetrics] = None
+    team_metrics: Optional[TeamMetrics] = None # Riutilizzo
+
+# Unione per Type Hinting dinamico
+SectorMetricsProfile = VCMetricsProfile | REMetricsProfile | PharmaMetricsProfile | LegalMetricsProfile

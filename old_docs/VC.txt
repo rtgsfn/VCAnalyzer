@@ -1,0 +1,7 @@
+Pitch Deck - SynchroFlow AI: Accelerating Logistics
+Vision: Diventare il sistema operativo delle Supply Chain globali, riducendo gli sprechi del 40%.
+Team: Fondato da Alice Rossi (CEO, ex-VP Product a Salesforce) e Marco Bianchi (CTO, 15 anni di esperienza in IA a Google DeepMind).
+Metriche: Abbiamo raggiunto $4.5M di Annual Recurring Revenue (ARR) nel Q3 2025. La nostra crescita YoY è del 180%.
+Efficienza: Il nostro Net Dollar Retention (NDR) è al 125%, indicando un'ottima espansione dai clienti esistenti.
+Obiettivi: Siamo in cerca di un round Series A da $15M per una valutazione post-money di $75M.
+Claim Critico: Il nostro software è l'unico al mondo ad offrire un algoritmo di ottimizzazione neurale brevettato.

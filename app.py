@@ -6,7 +6,6 @@ from typing import Tuple, List
 import pandas as pd
 import docx  # pip install python-docx
 from pptx import Presentation  # pip install python-pptx
-import json
 
 # Streamlit e GUI
 from streamlit_agraph import agraph, Node, Edge, Config
@@ -24,7 +23,7 @@ try:
     from extractor import KnowledgeGraph, DocumentClaims, Claim
     from graph import GraphTool
     from scraper import scrape_article_text
-    from vc_metrics import VCMetricsProfile  # Import per la tipizzazione corretta
+    from vc_metrics import VCMetricsProfile, PharmaMetricsProfile, REMetricsProfile, LegalMetricsProfile # Import per la tipizzazione corretta
 except ImportError as e:
     st.error(f"❌ Errore Critico: Impossibile importare i moduli. Dettagli: {e}")
     st.stop()
@@ -54,7 +53,8 @@ MODEL_OPTIONS = {
     "Ollama (Locale)": [
         "llama3:8b-instruct",
         "gemma:7b-instruct",
-        "mixtral:8x7b-instruct"
+        "mixtral:8x7b-instruct",
+        "kimi-k2:1t-cloud"
     ]
 }
 
@@ -283,6 +283,14 @@ st.markdown("---")
 # Sidebar Config
 with st.sidebar:
     st.header("⚙️ Configurazione")
+    sector = st.selectbox(
+        "🏢 Settore di Analisi",
+        ["Venture Capital", "Real Estate", "Legal / M&A", "Pharma & Biotech"],
+        index=0,
+        help="Cambia la prospettiva dell'agente (es. Analista Finanziario vs Avvocato)"
+    )
+
+    st.divider()
     provider = st.selectbox("🤖 Provider LLM:", list(MODEL_OPTIONS.keys()))
     available_models = MODEL_OPTIONS.get(provider, [])
     model_name = st.selectbox("📦 Modello:", available_models)
@@ -440,7 +448,8 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
             document_text,
             doc_retriever,
             is_deep_search=actual_deep_search,
-            requirements_text=requirements_text
+            requirements_text=requirements_text,
+            sector=sector
         )
 
         if "error" in result:
@@ -453,64 +462,123 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
         # ====================================================================
         # 6. RENDERING RISULTATI
         # ====================================================================
-
-        # A) MODALITÀ MATCHING REQUISITI
+        # A) MODALITÀ MATCHING REQUISITI (Renderizza nel results_placeholder)
         if analysis_mode == "Matching Requisiti Tecnici":
-            # Titolo PULITO (senza nome entità)
-            st.markdown(f"# 📋 Report Matching Requisiti")
-            st.caption(f"Analisi completata in {elapsed:.1f} secondi su documenti interni.")
+            with results_placeholder.container():
+                st.markdown(f"# 📋 Report Matching Requisiti")
+                st.caption(f"Analisi completata in {elapsed:.1f} secondi su documenti interni.")
+                st.markdown("---")
 
-            # Il report specifico è salvato in 'executive_summary' per questa modalità
-            st.markdown(result.get("executive_summary", ""))
+                # Contenuto della Gap Analysis
+                st.markdown(result.get("executive_summary", ""))
 
-            # QUI: Nessun Fact-Checking Web, Nessun Grafo, Nessuna Metrica Web.
-            # (Nota: abbiamo rimosso render_fact_checking_table per questa modalità come richiesto)
+            # Qui non renderizziamo grafici o metriche complesse
 
-        # B) MODALITÀ STANDARD (VC DUE DILIGENCE)
+        # B) MODALITÀ STANDARD (VC DUE DILIGENCE - Renderizza nelle placeholder)
         else:
-            st.markdown("# 📊 Investment Analysis Report")
-            st.caption(f"Analisi completata in {elapsed:.1f} secondi")
-
-            # --- 1. Metriche VC ---
+            # --- Metriche Dinamiche: Questo è il primo blocco visibile ---
             with metrics_placeholder.container():
+                st.markdown(f"# 📊 {sector} Analysis Report")  # TITOLO ALL'INIZIO DEL CONTAINER
+                st.caption(f"Analisi completata in {elapsed:.1f} secondi")
+                st.markdown("---")
+
                 vc_metrics = result.get("vc_metrics")
                 if vc_metrics:
-                    st.markdown("## 📊 Metriche VC Estratte")
-                    tab_saas, tab_traction, tab_market, tab_team, tab_fundraising = st.tabs([
-                        "💰 SaaS", "📈 Traction", "🌍 Market", "👥 Team", "💵 Fundraising"
-                    ])
+                    st.markdown(f"## 📊 Metriche Chiave Estratte ({sector})")
 
-                    with tab_saas:
-                        if vc_metrics.saas_metrics:
+                    # --- LOGICA DI RENDERING DINAMICO ---
+
+                    if isinstance(vc_metrics, VCMetricsProfile):
+                        # --- VC PROFILO STANDARD ---
+                        tab_names = ["💰 SaaS", "📈 Traction", "🌍 Market", "👥 Team", "💵 Fundraising"]
+                        tab_saas, tab_traction, tab_market, tab_team, tab_fundraising = st.tabs(tab_names)
+
+                        with tab_saas:
                             m = vc_metrics.saas_metrics
-                            c1, c2, c3 = st.columns(3)
-                            c1.metric("ARR", f"${m.arr}M" if m.arr else "-")
-                            c1.metric("Growth", f"{m.revenue_growth_rate}%" if m.revenue_growth_rate else "-")
-                            c2.metric("LTV/CAC", f"{m.ltv_cac_ratio}x" if m.ltv_cac_ratio else "-")
-                            c2.metric("Net Retention", f"{m.net_retention_rate}%" if m.net_retention_rate else "-")
-                            c3.metric("Runway", f"{m.runway_months} mo" if m.runway_months else "-")
-                        else:
-                            st.info("Nessuna metrica SaaS")
+                            if m:
+                                c1, c2, c3 = st.columns(3)
+                                c1.metric("ARR", f"${m.arr}M" if m.arr else "-")
+                                c1.metric("Growth YoY", f"{m.revenue_growth_rate}%" if m.revenue_growth_rate else "-")
+                                c2.metric("LTV/CAC", f"{m.ltv_cac_ratio}x" if m.ltv_cac_ratio else "-")
+                                c2.metric("Net Retention", f"{m.net_retention_rate}%" if m.net_retention_rate else "-")
+                                c3.metric("Runway", f"{m.runway_months} mo" if m.runway_months else "-")
+                            else:
+                                st.info("Nessuna metrica SaaS estratta.")
 
-                    with tab_traction:
-                        if vc_metrics.traction_metrics:
+                        with tab_traction:
                             m = vc_metrics.traction_metrics
-                            c1, c2 = st.columns(2)
-                            c1.metric("Utenti", f"{m.total_users}" if m.total_users else "-")
-                            c2.metric("NPS", f"{m.nps_score}" if m.nps_score else "-")
-                        else:
-                            st.info("Nessuna metrica Traction")
+                            if m:
+                                c1, c2 = st.columns(2)
+                                c1.metric("Utenti Totali", f"{m.total_users:,}" if m.total_users else "-")
+                                c2.metric("NPS Score", m.nps_score if m.nps_score else "-")
+                            else:
+                                st.info("Nessuna metrica Traction estratta.")
 
-                    # ... (Altri tab simili se necessario per Market, Team, Fundraising) ...
-                    with tab_team:
+                        with tab_market:
+                            m = vc_metrics.market_metrics
+                            if m:
+                                c1, c2, c3 = st.columns(3)
+                                c1.metric("TAM", f"${m.tam}B" if m.tam else "-")
+                                c2.metric("SAM", f"${m.sam}B" if m.sam else "-")
+                                c3.metric("SOM", f"${m.som}M" if m.som else "-")
+                            else:
+                                st.info("Nessuna metrica Market estratta.")
+
+                        with tab_fundraising:
+                            if vc_metrics.fundraising_metrics and vc_metrics.fundraising_metrics.rounds:
+                                for round_data in vc_metrics.fundraising_metrics.rounds:
+                                    st.markdown(f"**{round_data.stage.value}** - ${round_data.amount}M")
+                                    if round_data.lead_investor: st.caption(f"Lead: {round_data.lead_investor}")
+                                    st.markdown("---")
+                            else:
+                                st.info("Nessuna info fundraising estratta.")
+
+                        # Rendering del team nel tab Team
                         if vc_metrics.team_metrics and vc_metrics.team_metrics.founders:
-                            for f in vc_metrics.team_metrics.founders:
-                                st.markdown(f"**{f.name}** - {f.role}")
-                                st.caption(f"{f.background}")
-                        else:
-                            st.info("Info team mancanti")
+                            with tab_team:
+                                for founder in vc_metrics.team_metrics.founders:
+                                    st.markdown(f"**{founder.name}** - {founder.role}")
+                                    if founder.background: st.caption(f"📝 {founder.background}")
+                                    st.markdown("---")
+                                else:
+                                    st.info("Nessuna info team estratta.")
 
-            # --- 2. Report Testuali ---
+                    elif isinstance(vc_metrics, REMetricsProfile):
+                        # --- REAL ESTATE PROFILO ---
+                        tab_names = ["🏠 Finanziarie RE", "🌍 Mercato (VC)", "👥 Team"]
+                        tab_re, tab_market, tab_team = st.tabs(tab_names)
+
+                        with tab_re:
+                            m = vc_metrics.re_metrics
+                            if m:
+                                st.metric("Capitalization Rate (Cap Rate)", f"{m.cap_rate}%" if m.cap_rate else "-")
+                                st.metric("Internal Rate of Return (IRR)", f"{m.irr}%" if m.irr else "-")
+                                st.metric("Occupancy Rate", f"{m.occupancy_rate}%" if m.occupancy_rate else "-")
+                                st.metric("Net Operating Income (NOI)",
+                                          f"${m.net_operating_income}M" if m.net_operating_income else "-")
+                            else:
+                                st.info("Nessuna metrica Real Estate estratta.")
+
+                        # (Continuazione del rendering dinamico per gli altri settori)
+
+                        # Rendering del team nel tab Team
+                        team_metrics = getattr(vc_metrics, 'team_metrics', None)
+                        if team_metrics:
+                            with tab_team:
+                                if team_metrics.founders:
+                                    for founder in team_metrics.founders:
+                                        st.markdown(f"**{founder.name}** - {founder.role}")
+                                        if founder.background: st.caption(f"📝 {founder.background}")
+                                        st.markdown("---")
+                                else:
+                                    st.info("Nessuna info team estratta.")
+
+                        # ... (Aggiungere qui la logica per Pharma, Legal, ecc. usando lo stesso pattern with tab_nome) ...
+
+                    # Logica aggiunta per il rendering degli altri profili metrici come Pharma, Legal...
+                    # Nota: La logica dei tab Team/Fundraising deve essere adattata per Pharma/Legal se riutilizzano gli slot VC.
+
+            # --- 2. Report Testuali (Subito dopo le Metriche) ---
             with results_placeholder.container():
                 tab_summary, tab_risk, tab_feasibility, tab_facts = st.tabs([
                     "📋 Executive Summary", "🚩 Risk Analysis", "✅ Feasibility", "🔍 Fact-Check"
@@ -526,13 +594,12 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                     render_fact_checking_table(result.get("fact_checking_table", []))
 
                 st.markdown("---")
-                st.markdown("### 📈 Analisi Metriche vs Benchmark")
+                #st.markdown("### 📈 Analisi Metriche vs Benchmark")
                 st.markdown(result.get("metrics_analysis", ""))
 
             # --- 7. GRAFO (SOLO IN STANDARD) ---
-            # Spostato dentro l'ELSE per apparire solo in modalità standard
             with graph_placeholder.container():
-                st.markdown("## 🕸️ Knowledge Graph")
+                #st.markdown("## 🕸️ Knowledge Graph")
                 if "graph_data" in result:
                     render_knowledge_graph(
                         result["graph_data"]["nodes"],
@@ -540,21 +607,21 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                         entity_to_analyze
                     )
 
-        # --- 8. METADATA & DOWNLOAD ---
+        # --- 8. METADATA & DOWNLOAD (COMUNE) ---
         render_metadata_sidebar(result.get("metadata", {}))
 
         st.markdown("---")
         st.markdown("### 📥 Download Report")
 
         full_report_text = f"""# Report: {entity_to_analyze}
-Mode: {analysis_mode}
+    Mode: {analysis_mode}
 
-{result.get('executive_summary', '')}
+    {result.get('executive_summary', '')}
 
-{result.get('metrics_analysis', '')}
-{result.get('risk_analysis', '')}
-{result.get('feasibility_analysis', '')}
-"""
+    {result.get('metrics_analysis', '')}
+    {result.get('risk_analysis', '')}
+    {result.get('feasibility_analysis', '')}
+    """
         st.download_button("📄 Scarica Report Completo (MD)", full_report_text,
                            file_name=f"report_{entity_to_analyze}.md")
 

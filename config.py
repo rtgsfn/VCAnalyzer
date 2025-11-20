@@ -177,6 +177,34 @@ Il sistema:
     "error_generic": "❌ Si è verificato un errore durante l'analisi"
 }
 
+SECTOR_METRIC_HINTS = {
+        "Venture Capital": """
+            METRICHE VC CRITICHE DA CERCARE:
+            1. **SaaS Metrics**: ARR, MRR, Revenue Growth Rate (YoY %), LTV/CAC Ratio, Net Retention Rate (%), Runway (months), Rule of 40.
+            2. **Traction Metrics**: Total Users, Paying Customers, User Growth Rate (MoM %), NPS Score.
+            3. **Fundraising**: Round precedenti, Last Valuation, Total Raised.
+            """,
+        "Real Estate": """
+            METRICHE IMMOBILIARI CRITICHE DA CERCARE:
+            1. **Finanziarie**: Cap Rate (Capitalization Rate), Cash-on-Cash Return (%), ROI, IRR.
+            2. **Operative**: Occupancy Rate (%), Metratura, Costi di Manutenzione, Status Permessi.
+            3. **Mercato**: Zone di Mercato, Crescita della Zona (CAGR %).
+            """,
+        "Pharma & Biotech": """
+            METRICHE R&D CRITICHE DA CERCARE:
+            1. **R&D / Sviluppo**: Clinical Trial Phase (I, II, III), FDA/EMA Approval Status, Brevetti (Data Scadenza), Efficacy/Safety Data.
+            2. **Finanziarie**: Burn Rate (R&D spend), Time to Market (anni), Total Raised.
+            3. **Scientifiche**: Pubblicazioni Scientifiche, Key Opinion Leaders (KOLs) coinvolti.
+            """,
+        "Legal / M&A": """
+            FATTORI DI RISCHIO LEGALE CRITICI DA CERCARE:
+            1. **Compliance**: Certificazioni (ISO, SOC), GDPR compliance, Regolamentazioni di Settore.
+            2. **Proprietà Intellettuale**: Status dei Brevetti (validi/pendenti), Contenziosi IP.
+            3. **Contratti**: Clausole di Change of Control, Contenziosi Pendenti.
+            """
+    }
+
+
 # ============================================================================
 # EXPORT SETTINGS
 # ============================================================================

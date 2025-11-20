@@ -1,0 +1,7 @@
+Legal Due Diligence Memo - DataShield
+Attività: Software di anonimizzazione dati per istituti finanziari.
+Compliance: La società detiene la certificazione ISO 27001 (Security) e ha completato l'audit SOC 2 Type II lo scorso anno.
+Privacy: Lo statuto aziendale garantisce piena conformità al GDPR e al CCPA.
+IP: Tutti i software sono proprietari. Abbiamo due brevetti in attesa di approvazione (pending) per l'algoritmo di anonimizzazione.
+Rischio: Non ci sono contenziosi legali pendenti ('pending litigation') o passati significativi.
+Governance: Tutti i contratti chiave dei dirigenti contengono clausole di Change of Control per l'acquisizione.

@@ -7,6 +7,7 @@ import concurrent.futures
 import logging
 from datetime import datetime
 
+import config
 # Import tool e schemi
 from graph import GraphTool
 from extractor import KnowledgeGraph, DocumentClaims, Claim, RelazioneFondata, RelazioneInvestimento, \
@@ -27,10 +28,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from vc_metrics import (
     VCMetricsProfile, SaaSMetrics, TractionMetrics, MarketMetrics,
-    TeamMetrics, FundraisingMetrics, TeamMember, FundraisingRound,
-    BusinessModel, FundingStage, MetricStatus,
-    get_benchmark_assessment, TIER_1_VCS
+    TeamMetrics, FundraisingMetrics, SectorMetricsProfile, REMetricsProfile, PharmaMetricsProfile,
+    LegalMetricsProfile
 )
+
+from pydantic import BaseModel
 
 class AgenticKRAG:
 
@@ -619,224 +621,10 @@ Verdetto:""")
         self.log_status(f"✅ [Tool 6] Knowledge Graph popolato con successo", "success")
         return True
 
-    # ============================================================================
-    # Tool 7: Sintesi Finale (OTTIMIZZATO PER VC CON RISK/FEASIBILITY)
-    # ============================================================================
-
-    def genera_analisi_combinata(self, domanda_focus: str, contesto_grafo: str,
-                                 contesto_fact_checking: str, contesto_rag_semantico: str) -> str:
-        """Genera report VC strutturato con analisi rischi e fattibilità."""
-        self.log_status("📊 [Tool 7] Generazione report investigativo finale", "info")
-
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", """Sei un Partner Senior di un fondo VC top-tier (Sequoia, a16z level). 
-Stai preparando un Investment Committee Memo per decidere se investire in questa opportunità.
-
-Il tuo compito è integrare TRE fonti di dati:
-1. **Document Claims (Fact-Checking)**: Verifica delle affermazioni nel pitch deck
-2. **Document Context (RAG)**: Contesto qualitativo estratto dal documento privato
-3. **Public Knowledge Graph**: Dati pubblici verificati (fondatori, investimenti, storia)
-
-# OUTPUT RICHIESTO (FORMATO OBBLIGATORIO)
-
-## 📋 Executive Summary
-[2-3 frasi: Tesi di investimento sintetica + raccomandazione preliminare]
-
-## ✅ Investment Thesis (Bandiere Verdi)
-[Elenca 3-5 punti di forza dell'opportunità, supportati da EVIDENZE dalle 3 fonti]
-- **[Punto di Forza]**: [Evidenza concreta con fonte]
-
-## 🚩 Risk Analysis (Bandiere Rosse)
-[Analisi critica dei rischi, suddivisi per categoria]
-
-### 🔴 CRITICAL RISKS (Deal-Breaker Potential)
-- **[Rischio]**: [Descrizione + gravità + evidenza]
-
-### 🟡 MEDIUM RISKS (Require Mitigation)
-- **[Rischio]**: [Descrizione + mitigazione suggerita]
-
-### 🟢 LOW RISKS (Monitoring Required)
-- **[Rischio]**: [Descrizione]
-
-## 📊 Feasibility Analysis
-[Valutazione della fattibilità tecnica, di mercato, finanziaria]
-
-### Technical Feasibility
-- **Team Capability**: [Valutazione competenze tecniche del team basata su background]
-- **Product Development Stage**: [MVP/Beta/Production e timeline realistica]
-- **Technology Moat**: [Difendibilità tecnologica e barriere all'entrata]
-
-### Market Feasibility
-- **Market Timing**: [Il mercato è pronto? Early/On-time/Late]
-- **TAM/SAM/SOM Analysis**: [Validazione dimensioni mercato dichiarate]
-- **Competitive Position**: [Differenziazione vs competitori esistenti]
-
-### Financial Feasibility
-- **Unit Economics**: [CAC/LTV ratio, margini, payback period]
-- **Burn Rate & Runway**: [Sostenibilità finanziaria]
-- **Path to Profitability**: [Credibilità del piano finanziario]
-
-## ⚠️ Open Questions (Due Diligence Necessaria)
-[Domande critiche rimaste senza risposta che richiedono ulteriore investigazione]
-1. [Domanda specifica da investigare]
-
-## 🎯 Recommendation
-[PASS / DEEP DIVE / PASS (with rationale)]
-[Giustificazione della raccomandazione in 3-4 frasi]
-
----
-
-**REGOLE CRITICHE**:
-- Ogni affermazione DEVE essere supportata da evidenze dalle 3 fonti
-- Se documento e fatti pubblici divergono, EVIDENZIA LA DISCREPANZA con emoji 🚨
-- Se un claim è "FALSO" nel fact-checking, è AUTOMATICAMENTE un RED FLAG 🔴
-- Se dati critici (revenue, team background) sono "NON VERIFICABILI", è un YELLOW FLAG 🟡
-- Sii diretto e specifico: questo è per un Investment Committee, non per marketing"""),
-            ("user", """Entità Focus: {domanda_focus}
-
---- FONTE 1: Document Claims Verification (Fact-Checking) ---
-{contesto_fact_checking}
-
---- FONTE 2: Document Semantic Context (RAG) ---
-{contesto_rag_semantico}
-
---- FONTE 3: Public Knowledge Graph (Verified Facts) ---
-{contesto_grafo}
-
-Investment Committee Memo:""")
-        ])
-
-        catena_analisi = prompt | self.llm_pro | StrOutputParser()
-
-        try:
-            analisi = catena_analisi.invoke({
-                "domanda_focus": domanda_focus,
-                "contesto_grafo": contesto_grafo,
-                "contesto_fact_checking": contesto_fact_checking,
-                "contesto_rag_semantico": contesto_rag_semantico
-            })
-            self.log_status("✅ [Tool 7] Report generato con successo", "success")
-            return analisi
-        except Exception as e:
-            self.log_status(f"❌ [Tool 7] Errore generazione report: {e}", "error")
-            return f"Errore nella generazione del report: {e}"
 
     # ============================================================================
     # ORCHESTRATORE PRINCIPALE
     # ============================================================================
-
-    def run_full_analysis(self, entita_focus: str, document_text: str, doc_retriever) -> dict:
-        """
-        Esegue l'analisi completa e restituisce risultati strutturati.
-
-        Returns:
-            {
-                "report": str (markdown report),
-                "fact_checking_table": List[dict],
-                "graph_data": {"nodes": [...], "edges": [...]},
-                "metadata": {...}
-            }
-        """
-        self.log_status("=" * 60, "info")
-        self.log_status(f"🎯 INIZIO ANALISI INVESTIGATIVA: '{entita_focus}'", "info")
-        self.log_status("=" * 60, "info")
-
-        analysis_start = time.time()
-
-        try:
-            # FASE 1: Verifica presenza entità nel documento
-            self.log_status("🔍 FASE 1: Verifica presenza entità nel documento", "info")
-            entity_analysis = self.deduce_entity_from_document(document_text)
-
-            # Se l'entità richiesta non corrisponde a quella dedotta
-            if entity_analysis["entity_found"] and entity_analysis["entity_name"].lower() != entita_focus.lower():
-                self.log_status(
-                    f"⚠️ ATTENZIONE: Entità richiesta ('{entita_focus}') diversa da quella nel documento ('{entity_analysis['entity_name']}')",
-                    "warning")
-
-            # FASE 2: Elaborazione parallela (RAG + Claims)
-            self.log_status("🔄 FASE 2: Elaborazione parallela (RAG + Estrazione Claims)", "info")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                future_rag = executor.submit(self.get_document_context, doc_retriever, entita_focus)
-                future_claims = executor.submit(self.extract_claims_from_text, document_text)
-
-                contesto_rag_semantico = future_rag.result()
-                claims_list = future_claims.result()
-
-            # FASE 3: Fact-Checking
-            self.log_status("🔍 FASE 3: Fact-Checking delle affermazioni", "info")
-            verified_claims = self.verify_claims_online(claims_list)
-
-            # Costruisci tabella fact-checking
-            contesto_fact_checking = self._build_fact_checking_context(entita_focus, verified_claims)
-
-            # FASE 4: Knowledge Graph
-            self.log_status("🕸️ FASE 4: Interrogazione Knowledge Graph", "info")
-            contesto_grafo = self.get_graph_context(entita_focus)
-
-            # FASE 5: Feedback Loop (se necessario)
-            report_feedback = ""
-            if "Nessun contesto trovato" in contesto_grafo:
-                self.log_status(f"⚠️ FASE 5: Entità '{entita_focus}' non nel grafo. Avvio popolamento automatico...",
-                                "warning")
-                successo_popolamento = self.run_population_cycle(entita_focus)
-
-                if successo_popolamento:
-                    self.log_status("✅ Grafo popolato. Recupero contesto aggiornato...", "success")
-                    contesto_grafo = self.get_graph_context(entita_focus)
-                    report_feedback = f"*(Nota: l'entità '{entita_focus}' è stata aggiunta automaticamente al Knowledge Graph tramite ricerca web)*\n\n"
-                else:
-                    self.log_status("❌ Popolamento automatico fallito", "error")
-                    contesto_grafo = f"Impossibile recuperare informazioni pubbliche per '{entita_focus}'."
-
-            # FASE 6: Recupero dati visualizzazione grafo
-            self.log_status("📊 FASE 6: Preparazione visualizzazione grafo", "info")
-            nodes, edges = self.graph_tool.get_graph_visualization_data(entita_focus)
-
-            # FASE 7: Sintesi Finale
-            self.log_status("📝 FASE 7: Generazione Investment Committee Memo", "info")
-            analisi_finale = self.genera_analisi_combinata(
-                entita_focus,
-                contesto_grafo,
-                contesto_fact_checking,
-                contesto_rag_semantico
-            )
-
-            # Calcola statistiche finali
-            elapsed = time.time() - analysis_start
-            self.log_status("=" * 60, "info")
-            self.log_status(f"✅ ANALISI COMPLETATA IN {elapsed:.1f} SECONDI", "success")
-            self.log_status("=" * 60, "info")
-
-            return {
-                "report": report_feedback + analisi_finale,
-                "fact_checking_table": verified_claims,
-                "graph_data": {"nodes": nodes, "edges": edges},
-                "entity_analysis": entity_analysis,
-                "metadata": {
-                    "entity": entita_focus,
-                    "claims_total": len(claims_list),
-                    "claims_verified": len([c for c in verified_claims if c["status"] == "VERIFICATA"]),
-                    "claims_false": len([c for c in verified_claims if c["status"] == "FALSA"]),
-                    "claims_partial": len([c for c in verified_claims if c["status"] == "PARZIALMENTE VERIFICATA"]),
-                    "claims_unverifiable": len([c for c in verified_claims if c["status"] == "NON VERIFICABILE"]),
-                    "graph_nodes": len(nodes),
-                    "graph_edges": len(edges),
-                    "analysis_time_seconds": round(elapsed, 2)
-                }
-            }
-
-        except Exception as e:
-            self.log_status(f"❌ ERRORE CRITICO: {e}", "error")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return {
-                "report": f"# ❌ Analisi Fallita\n\nErrore critico: {e}",
-                "fact_checking_table": [],
-                "graph_data": {"nodes": [], "edges": []},
-                "entity_analysis": {"entity_found": False},
-                "metadata": {"error": str(e)}
-            }
 
     def _build_fact_checking_context(self, entita: str, verified_claims: List[dict]) -> str:
         """Costruisce il contesto testuale del fact-checking."""
@@ -870,79 +658,41 @@ Investment Committee Memo:""")
 
         return context
 
-    # Aggiungi questo import all'inizio del file analyzer.py esistente
-    from vc_metrics import (
-        VCMetricsProfile, SaaSMetrics, TractionMetrics, MarketMetrics,
-        TeamMetrics, FundraisingMetrics, TeamMember, FundraisingRound,
-        BusinessModel, FundingStage, MetricStatus,
-        get_benchmark_assessment, TIER_1_VCS
-    )
+    METRIC_MODEL_MAP = {
+        "Venture Capital": VCMetricsProfile,
+        "Real Estate": REMetricsProfile,
+        "Pharma & Biotech": PharmaMetricsProfile,
+        "Legal / M&A": LegalMetricsProfile,
+    }
 
-    # Aggiungi questa nuova funzione nella classe AgenticKRAG
+    SECTOR_METRIC_HINTS = config.SECTOR_METRIC_HINTS
 
-    def extract_vc_metrics(self, document_text: str, entity_name: str) -> VCMetricsProfile:
+    def extract_sector_metrics(self, document_text: str, entity_name: str, sector: str) -> VCMetricsProfile:
         """
-        Estrae metriche VC specializzate dal documento.
-        Usa output strutturato per garantire parsing affidabile.
+        Estrae metriche chiave specializzate dal documento, adattando il focus al settore.
         """
-        self.log_status(f"📊 Estrazione metriche VC per '{entity_name}'", "info")
+        self.log_status(f"📊 Estrazione metriche chiave per '{sector}'", "info")
+
+        # 1. Seleziona il modello corretto
+        MetricsProfileClass = self.METRIC_MODEL_MAP.get(sector, VCMetricsProfile)
 
         try:
-            extractor_chain = self.llm_pro.with_structured_output(VCMetricsProfile)
+            extractor_chain = self.llm_pro.with_structured_output(MetricsProfileClass)
         except Exception as e:
-            self.log_status(f"⚠️ Output strutturato non disponibile: {e}", "warning")
-            return VCMetricsProfile(entity_name=entity_name)
+            self.log_status(f"⚠️ Errore setup extraction chain per {sector}: {e}", "warning")
+            return VCMetricsProfile(entity_name=entity_name)  # Fallback al modello VC
+
+        # 2. Prepara il prompt specifico (Mantieni la logica dinamica)
+        sector_hints = self.SECTOR_METRIC_HINTS.get(sector, self.SECTOR_METRIC_HINTS["Venture Capital"])
 
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """Sei un analista VC esperto nell'estrazione di metriche finanziarie.
+            ("system", f"""Sei un analista esperto nel settore {sector}. Estrai TUTTE le metriche quantitative dal documento.
 
-    Estrai TUTTE le metriche quantitative dal documento. Se una metrica non è presente, lasciala come null.
+            **FOCUS SPECIFICO PER {sector.upper()}**:
+            {sector_hints}
 
-    **METRICHE CRITICHE DA CERCARE**:
-
-    1. **SaaS Metrics**:
-       - ARR (Annual Recurring Revenue)
-       - MRR (Monthly Recurring Revenue)  
-       - Revenue Growth Rate (YoY %)
-       - Gross Margin (%)
-       - LTV/CAC Ratio
-       - CAC Payback (months)
-       - Net Retention Rate (%)
-       - Gross Retention Rate (%)
-       - Monthly Burn Rate
-       - Runway (months)
-
-    2. **Traction Metrics**:
-       - Total Users/Customers
-       - Paying Customers
-       - User Growth Rate (MoM %)
-       - ARPU (Average Revenue Per User)
-       - NPS Score
-       - Enterprise Customers (>$100K ARR)
-
-    3. **Market Metrics**:
-       - TAM (Total Addressable Market)
-       - SAM (Serviceable Addressable Market)
-       - SOM (Serviceable Obtainable Market)
-       - Market Share (%)
-       - Market Growth Rate (CAGR %)
-
-    4. **Team**:
-       - Founders (nome, ruolo, background)
-       - Team Size
-       - Previous Exits dei founder
-
-    5. **Fundraising**:
-       - Round precedenti (stage, amount, date, investors)
-       - Total Raised
-       - Last Valuation
-
-    **REGOLE**:
-    - Converti sempre i valori in formati numerici standardizzati
-    - Es: "$5M ARR" → arr: 5.0
-    - Es: "150% YoY growth" → revenue_growth_rate: 150.0
-    - Es: "18 months runway" → runway_months: 18
-    - Per team, estrai SOLO informazioni esplicite (non inventare)"""),
+            **SCHEMA**:
+            Devi popolare lo schema Pydantic fornito. Mappa le informazioni specifiche del settore nei campi più appropriati dello schema. Sii preciso e non inventare dati."""),
             ("user", "Entità: {entity}\n\nDocumento:\n\n{text}")
         ])
 
@@ -950,105 +700,76 @@ Investment Committee Memo:""")
 
         try:
             metrics = pipeline.invoke({"entity": entity_name, "text": document_text[:5000]})
-            self.log_status(f"✅ Metriche estratte per '{entity_name}'", "success")
+            self.log_status(f"✅ Metriche estratte per '{entity_name}' ({MetricsProfileClass.__name__})", "success")
             return metrics
         except Exception as e:
             self.log_status(f"❌ Errore estrazione metriche: {e}", "error")
-            return VCMetricsProfile(entity_name=entity_name)
+            # Restituisce un oggetto vuoto del tipo corretto in caso di errore
+            return MetricsProfileClass(entity_name=entity_name)
 
-    def generate_metrics_analysis(self, metrics: VCMetricsProfile) -> str:
+    def generate_metrics_analysis(self, metrics, persona: str) -> str:
         """
-        Genera analisi qualitativa delle metriche con benchmark.
-        QUESTA È UNA CHIAMATA SEPARATA per streaming.
+        Genera analisi qualitativa delle metriche con benchmark, utilizzando la persona.
+        Accetta qualsiasi profilo metrico (VC, RE, Pharma, Legal).
         """
-        self.log_status("📈 Generazione analisi metriche vs benchmark", "info")
+        self.log_status(f"📈 Generazione analisi metriche vs benchmark per {type(metrics).__name__}", "info")
 
-        # Costruisci contesto metriche
-        metrics_context = f"""
-    **METRICHE ESTRATTE PER {metrics.entity_name}**
+        # 1. Costruisci contesto metriche (dinamico)
+        metrics_context = f"**METRICHE ESTRATTE PER {metrics.entity_name} ({type(metrics).__name__})**\n\n"
 
-    """
+        # Usa la reflection di Pydantic per iterare su tutti i sub-modelli presenti
+        for field_name, field_value in metrics.model_dump(exclude_none=True).items():
 
-        if metrics.saas_metrics:
-            m = metrics.saas_metrics
-            metrics_context += f"""
-    ### 💰 SaaS Metrics
-    - ARR: ${m.arr}M (se disponibile)
-    - MRR: ${m.mrr}K
-    - Revenue Growth: {m.revenue_growth_rate}% YoY
-    - Gross Margin: {m.gross_margin}%
-    - LTV/CAC: {m.ltv_cac_ratio}
-    - CAC Payback: {m.cac_payback_months} months
-    - Net Retention: {m.net_retention_rate}%
-    - Monthly Burn: ${m.monthly_burn}K
-    - Runway: {m.runway_months} months
-    - Rule of 40: {m.rule_of_40}
-    """
+            # Se è un sub-modello (es. saas_metrics, re_metrics, legal_metrics)
+            if isinstance(field_value, dict) and field_name not in ['metrics_status', 'entity_name']:
+                # Formattazione del titolo (es. ### 💰 SaaS Metrics)
+                title = field_name.replace('_', ' ').title()
+                metrics_context += f"### {title}\n"
 
-        if metrics.traction_metrics:
-            m = metrics.traction_metrics
-            metrics_context += f"""
-    ### 📈 Traction Metrics
-    - Total Users: {m.total_users}
-    - Paying Customers: {m.paying_customers}
-    - User Growth: {m.user_growth_rate}% MoM
-    - ARPU: ${m.revenue_per_customer}
-    - NPS: {m.nps_score}
-    - Enterprise Customers: {m.enterprise_customers}
-    """
+                # Itera sui singoli campi nel sub-modello
+                for key, value in field_value.items():
+                    if value is not None and key not in ['founders', 'rounds']:
+                        metrics_context += f"- {key.replace('_', ' ').title()}: {value}\n"
 
-        if metrics.market_metrics:
-            m = metrics.market_metrics
-            metrics_context += f"""
-    ### 🌍 Market Metrics
-    - TAM: ${m.tam}B
-    - SAM: ${m.sam}B
-    - SOM: ${m.som}M
-    - Market Share: {m.market_share}%
-    - Market Growth: {m.market_growth_rate}% CAGR
-    """
+                # Aggiungi liste specifiche (Founders, Rounds)
+                if field_name == 'team_metrics' and 'founders' in field_value and field_value['founders']:
+                    metrics_context += f"- Fondatori: {len(field_value['founders'])} membri. Esempi: {field_value['founders'][0].get('name', '')}\n"
 
-        if metrics.fundraising_metrics and metrics.fundraising_metrics.rounds:
-            metrics_context += f"""
-    ### 💵 Fundraising History
-    - Total Raised: ${metrics.fundraising_metrics.total_raised}M
-    - Last Valuation: ${metrics.fundraising_metrics.last_valuation}M
-    - Rounds: {len(metrics.fundraising_metrics.rounds)}
-    """
+                if field_name == 'fundraising_metrics' and 'rounds' in field_value and field_value['rounds']:
+                    metrics_context += f"- Round raccolti: {len(field_value['rounds'])}.\n"
 
+                metrics_context += "\n"
+
+        # 2. Definisci il prompt
+        # NOTA: L'LLM deve inferire i benchmark in base alla sua persona e al contesto.
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """Sei un Partner Senior VC che analizza metriche finanziarie.
+            ("system", f"""{persona}
+Sei un analista che esegue un'analisi comparativa.
 
-    Compara le metriche fornite contro i BENCHMARK STANDARD del settore VC:
+Compara le metriche fornite contro i BENCHMARK STANDARD del settore **{persona}**.
+Se i dati sono VC-focused (ARR, LTV/CAC), usa i benchmark VC (es. Rule of 40).
+Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Rate > 6%).
 
-    **BENCHMARK SAAS (Series A)**:
-    - ARR Growth: >200% = Excellent, >150% = Good, >100% = Acceptable
-    - Net Retention: >120% = Excellent, >110% = Good, >100% = Acceptable
-    - LTV/CAC: >4 = Excellent, >3 = Good, >2 = Acceptable
-    - CAC Payback: <6 months = Excellent, <12 = Good, <18 = Acceptable
-    - Gross Margin: >80% = Excellent, >70% = Good, >60% = Acceptable
-    - Rule of 40: >40 = Excellent, 20-40 = Good, <20 = Poor
+**OUTPUT RICHIESTO** (Markdown):
 
-    **OUTPUT RICHIESTO** (Markdown):
+## 📊 Metrics Analysis vs. Benchmarks
 
-    ## 📊 Metrics Analysis vs. Benchmarks
+### ✅ Strong Metrics (Above Benchmark)
+[Lista metriche che battono il benchmark con % di outperformance o commento specifico al settore. Es: "Cap Rate 7.5% vs 6.0% Benchmark."]
 
-    ### ✅ Strong Metrics (Above Benchmark)
-    [Lista metriche che battono il benchmark con % di outperformance]
+### ⚠️ Concern Areas (Below Benchmark)  
+[Lista metriche sotto benchmark con analisi del gap e impatto sul settore.]
 
-    ### ⚠️ Concern Areas (Below Benchmark)  
-    [Lista metriche sotto benchmark con analisi del gap]
+### ❓ Missing Critical Metrics
+[Metriche chiave non presenti che servono per la valutazione (es. R&D Burn Rate per Pharma).]
 
-    ### ❓ Missing Critical Metrics
-    [Metriche chiave non presenti nel documento che servono per valutazione]
+### 🎯 Key Takeaways
+[3-4 bullet point con conclusioni chiave, focalizzate sul settore.]
 
-    ### 🎯 Key Takeaways
-    [3-4 bullet point con conclusioni chiave]
-
-    **REGOLE**:
-    - Sii specifico: "ARR Growth 250% vs 200% benchmark (+50pp)" 
-    - Evidenzia red flags: "CAC Payback 24 months (2x benchmark acceptable)"
-    - Se mancano metriche critiche, evidenzialo come risk"""),
+**REGOLE**:
+- Sii specifico e cita i valori numerici.
+- Evidenzia Red Flags (es. 'LTV/CAC 1.5x' per VC, o 'Occupancy Rate 50%' per RE).
+- Se il dato è nullo ('-'), includilo in 'Missing Critical Metrics' se è vitale."""),
             ("user", "{metrics_context}")
         ])
 
@@ -1060,17 +781,17 @@ Investment Committee Memo:""")
             return analysis
         except Exception as e:
             self.log_status(f"❌ Errore generazione analisi metriche: {e}", "error")
-            return f"## ❌ Errore Analisi Metriche\n\n{e}"
+            return f"## ❌ Errore Analisi Metriche\n\nSi è verificato un errore durante la generazione dell'analisi: {e}"
 
     def generate_risk_analysis(self, entity_name: str, fact_checking_summary: str,
-                               graph_context: str, metrics_analysis: str) -> str:
+                               graph_context: str, metrics_analysis: str, persona: str) -> str:
         """
         Genera SOLO l'analisi dei rischi (chiamata separata per streaming).
         """
         self.log_status("🚩 Generazione Risk Analysis", "info")
-
+        if not persona: persona = "Sei un Partner Senior di un fondo VC top-tier (Sequoia level)."
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """Sei un Partner VC che conduce risk assessment.
+            ("system", f"""{persona} Stai conducendo un Risk Assesment.
 
     Analizza TUTTI i dati disponibili e identifica rischi investimento, categorizzati per severity.
 
@@ -1144,14 +865,14 @@ Investment Committee Memo:""")
             return f"## ❌ Errore Risk Analysis\n\n{e}"
 
     def generate_feasibility_analysis(self, entity_name: str, rag_context: str,
-                                      metrics_analysis: str, graph_context: str) -> str:
+                                      metrics_analysis: str, graph_context: str, persona: str) -> str:
         """
         Genera SOLO l'analisi di fattibilità (chiamata separata per streaming).
         """
         self.log_status("✅ Generazione Feasibility Analysis", "info")
-
+        if not persona: persona = "Sei un Partner Senior di un fondo VC top-tier (Sequoia level)."
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """Sei un Partner VC che valuta la fattibilità di un investment.
+            ("system", f"""{persona} Stai valutando la fattibilità di un investimento.
 
     Analizza la fattibilità su 3 dimensioni: Technical, Market, Financial.
 
@@ -1237,10 +958,19 @@ Investment Committee Memo:""")
     # ORCHESTRATORE PRINCIPALE (Aggiornato)
     # ============================================================================
     def run_full_analysis_streaming(self, entita_focus: str, document_text: str, doc_retriever,
-                                    is_deep_search: bool = False, requirements_text: str = None) -> dict:
-        """
-        Esegue l'analisi completa.
-        """
+                                    is_deep_search: bool = False, requirements_text: str = None,
+                                    sector: str = "Venture Capital") -> dict:
+
+        # Definiamo il "Persona" in base al settore
+        sector_prompts = {
+            "Venture Capital": "Sei un Partner Senior di un fondo VC top-tier (Sequoia level).",
+            "Real Estate": "Sei un Analista Senior di Investimenti Immobiliari.",
+            "Legal / M&A": "Sei un Avvocato esperto in Due Diligence per M&A.",
+            "Pharma & Biotech": "Sei un esperto di Drug Discovery e Trial Clinici."
+        }
+
+        persona = sector_prompts.get(sector, sector_prompts["Venture Capital"])
+
         self.log_status("=" * 60, "info")
         self.log_status(f"🎯 AVVIO ANALISI: '{entita_focus}'", "info")
 
@@ -1291,16 +1021,15 @@ Investment Committee Memo:""")
             # ====================================================================
             else:
                 self.log_status("📊 MODALITÀ: Standard VC Due Diligence", "info")
-
                 # FASE 1: Verifica Entità
                 entity_analysis = self.deduce_entity_from_document(document_text)
                 results["entity_analysis"] = entity_analysis
 
                 # FASE 2: Metriche
-                self.log_status("📊 Estrazione metriche VC...", "info")
-                metrics_from_doc = self.extract_vc_metrics(document_text, entita_focus)
-                vc_metrics = self.augment_vc_metrics_from_web(metrics_from_doc, entita_focus, is_deep_search)
-                results["vc_metrics"] = vc_metrics
+                self.log_status(f"📊 FASE 2: Estrazione metriche chiave per {sector}...", "info")
+                metrics_from_doc = self.extract_sector_metrics(document_text, entita_focus, sector)
+                metrics = self.augment_metrics_from_web(metrics_from_doc, entita_focus, is_deep_search, sector)
+                results["metrics"] = metrics
 
                 # FASE 3: RAG + Claims
                 self.log_status("🔄 Analisi Documentale Parallela...", "info")
@@ -1326,19 +1055,19 @@ Investment Committee Memo:""")
                 results["graph_data"] = {"nodes": nodes, "edges": edges}
 
                 # FASE 6-9: Analisi
-                metrics_analysis = self.generate_metrics_analysis(vc_metrics)
+                metrics_analysis = self.generate_metrics_analysis(metrics, persona)
                 results["metrics_analysis"] = metrics_analysis
 
                 risk_analysis = self.generate_risk_analysis(entita_focus, fact_checking_summary, contesto_grafo,
-                                                            metrics_analysis)
+                                                            metrics_analysis, persona)
                 results["risk_analysis"] = risk_analysis
 
                 feasibility_analysis = self.generate_feasibility_analysis(entita_focus, contesto_rag, metrics_analysis,
-                                                                          contesto_grafo)
+                                                                          contesto_grafo, persona)
                 results["feasibility_analysis"] = feasibility_analysis
 
                 executive_summary = self.generate_executive_summary(entita_focus, risk_analysis, feasibility_analysis,
-                                                                    fact_checking_summary)
+                                                                    fact_checking_summary, persona)
                 results["executive_summary"] = executive_summary
 
             # ====================================================================
@@ -1375,14 +1104,14 @@ Investment Committee Memo:""")
             }
 
     def generate_executive_summary(self, entity_name: str, risk_analysis: str,
-                                   feasibility_analysis: str, fact_checking_summary: str) -> str:
+                                   feasibility_analysis: str, fact_checking_summary: str, persona: str = "") -> str:
         """
         Genera Executive Summary finale (ultima chiamata per streaming).
         """
         self.log_status("📝 Generazione Executive Summary", "info")
-
+        if not persona: persona = "Sei un Partner Senior di un fondo VC top-tier (Sequoia level)."
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """Sei un Partner VC che scrive l'Executive Summary per l'Investment Committee.
+            ("system", f"""{persona} Stai scrivendo l'Investment Summary per l'Investment Comitee.
 
     Sintetizza TUTTO in una raccomandazione chiara e azionabile.
 
@@ -1509,21 +1238,72 @@ Investment Committee Memo:""")
 
         return merged
 
-    def augment_vc_metrics_from_web(self, metrics_from_doc: VCMetricsProfile, entity_name: str, is_deep_search: bool = False) -> VCMetricsProfile:
-        """
-        Arricchisce il profilo metriche VC cercando informazioni online.
-        I dati trovati nel documento (metrics_from_doc) hanno la priorità.
-        """
-        self.log_status(f"🌐 [Tool 2.5] Arricchimento metriche VC per '{entity_name}' da web", "info")
+    def _merge_metrics_profiles(self, doc_profile: SectorMetricsProfile,
+                           web_profile: SectorMetricsProfile) -> SectorMetricsProfile:
+        # Questa funzione ora deve accettare e restituire i tipi dinamici
 
-        # 1. Cerca informazioni web sulle metriche
-        query = f"VC metrics, funding, and team for {entity_name}: ARR, funding rounds, valuation, TAM, founders, team size"
+        # Se i tipi sono diversi, qualcosa è andato storto; restituisce il Doc Profile
+        if type(doc_profile) != type(web_profile):
+            self.log_status("⚠️ Tipi di metriche non corrispondenti nel merge. Uso solo dati documento.", "warning")
+            return doc_profile
+
+        # L'oggetto Pydantic ha il metodo copy/update
+        merged = web_profile.model_copy(deep=True)
+
+        # Itera sui campi del documento e sovrascrivi i campi valorizzati
+        for field_name, doc_value in doc_profile.model_dump(exclude_none=True).items():
+            if field_name != 'entity_name':
+                # Se è un sub-modello, lo uniamo a livello di sub-modello
+                if isinstance(doc_value, BaseModel) and hasattr(merged, field_name):
+                    web_sub_model = getattr(web_profile, field_name)
+
+                    # Se il sub-modello del doc è valorizzato, usiamo i suoi dati per aggiornare il sub-modello web
+                    if doc_value:
+                        web_sub_model_data = web_sub_model.model_dump(exclude_none=True) if web_sub_model else {}
+                        doc_sub_model_data = doc_value.model_dump(exclude_none=True)
+
+                        # Unisce i due dizionari (doc sovrascrive web)
+                        merged_sub_data = {**web_sub_model_data, **doc_sub_model_data}
+
+                        # Ricrea il sub-modello corretto
+                        setattr(merged, field_name, type(doc_value)(**merged_sub_data))
+
+                elif isinstance(doc_value, list):
+                    # Le liste (come founders o rounds) vengono sovrascritte interamente
+                    setattr(merged, field_name, doc_value)
+
+                else:
+                    # Campo semplice (str, float, bool)
+                    setattr(merged, field_name, doc_value)
+
+        self.log_status("  ✅ Merge dei profili completato.", "success")
+        return merged
+
+    def augment_metrics_from_web(self, metrics_from_doc: SectorMetricsProfile, entity_name: str, is_deep_search: bool, sector: str) -> SectorMetricsProfile:
+        """
+            Arricchisce il profilo metriche cercando informazioni online, guidato dal settore.
+            """
+        self.log_status(f"🌐 [Tool 2.5] Arricchimento metriche per '{sector}' da web", "info")
+
+        # 1. Preparazione Query Web specifica per Settore
+        sector_hints = self.SECTOR_METRIC_HINTS.get(sector, self.SECTOR_METRIC_HINTS["Venture Capital"])
+
+        # Estraiamo le keywords chiave dal dizionario
         try:
-            # Usiamo un search tool dedicato per 5 risultati focalizzati
-            search_depth = "advanced" if is_deep_search else "basic"
-            max_results = 10 if is_deep_search else 5  # 5 risultati per 'normal', 10 per 'deep'
+            # Tenta di estrarre tutte le linee che contengono un ':' (per KPI chiave)
+            keywords = ", ".join(
+                [line.split(':')[1].strip() for line in sector_hints.split('\n') if ':' in line and len(line) > 5])
+        except:
+            keywords = "ARR, funding rounds, valuation, Cap Rate, Clinical Trial Phase"  # Fallback generico
 
-            self.log_status(f"  [Tool 2.5] Avvio ricerca metriche (Depth: {search_depth})", "info")
+        query = f"Key metrics, funding, and team for {entity_name} in {sector} focused on {keywords}"
+
+        # 2. Ricerca Web
+        try:
+            search_depth = "advanced" if is_deep_search else "basic"
+            max_results = 10 if is_deep_search else 5
+
+            self.log_status(f"  [Tool 2.5] Avvio ricerca metriche (Settore: {sector}, Depth: {search_depth})", "info")
 
             search_tool = TavilySearch(
                 max_results=max_results,
@@ -1538,30 +1318,22 @@ Investment Committee Memo:""")
             self.log_status(f"⚠️ [Tool 2.5] Ricerca web per metriche fallita: {e}", "warning")
             return metrics_from_doc  # Fallback: restituisce solo i dati del doc
 
-        # 2. Consolida il contesto web
+        # 3. Estrazione Metriche dal contesto web (Usiamo lo stesso prompt dinamico)
         web_context = "\n\n".join([res['content'] for res in search_results if res.get('content')])
         if answer:
             web_context += f"\n\n--- Riepilogo Web ---\n{answer}"
 
         if not web_context.strip():
             self.log_status("⚠️ [Tool 2.5] Nessun contenuto web trovato per le metriche", "warning")
-            return metrics_from_doc  # Fallback
+            return metrics_from_doc
 
-        # 3. Estrai metriche dal contesto web usando lo stesso schema
         try:
-            extractor_chain = self.llm_pro.with_structured_output(VCMetricsProfile)
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", """Sei un analista VC. Estrai TUTTE le metriche VC dal contesto web fornito. 
-Segui lo schema JSON. Usa solo i dati forniti nel contesto.
-Ignora i campi se non trovi informazioni specifiche."""),
-                ("user", "Entità: {entity}\n\nContesto Web:\n\n{text}")
-            ])
-            pipeline = prompt | extractor_chain
-            metrics_from_web = pipeline.invoke({"entity": entity_name, "text": web_context})
+            # Riutilizza la logica di estrazione dinamica sul contesto web
+            metrics_from_web = self.extract_sector_metrics(web_context, entity_name, sector)
             self.log_status("  ✅ [Tool 2.5] Estrazione metriche da web completata", "success")
         except Exception as e:
             self.log_status(f"⚠️ [Tool 2.5] Estrazione metriche da web fallita: {e}", "warning")
-            return metrics_from_doc  # Fallback
+            return metrics_from_doc
 
         # 4. Mergia i due profili
         final_metrics = self._merge_vc_profiles(metrics_from_doc, metrics_from_web)
@@ -1695,6 +1467,82 @@ OUTPUT FORMATO (Markdown):
         except Exception as e:
             self.log_status(f"❌ Errore Gap Analysis: {e}", "error")
             return f"Errore durante l'analisi: {e}"
+
+    def extract_vc_metrics(self, document_text: str, entity_name: str) -> VCMetricsProfile:
+        """
+        Estrae metriche VC specializzate dal documento.
+        Usa output strutturato per garantire parsing affidabile.
+        """
+        self.log_status(f"📊 Estrazione metriche VC per '{entity_name}'", "info")
+
+        try:
+            extractor_chain = self.llm_pro.with_structured_output(VCMetricsProfile)
+        except Exception as e:
+            self.log_status(f"⚠️ Output strutturato non disponibile: {e}", "warning")
+            return VCMetricsProfile(entity_name=entity_name)
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """Sei un analista VC esperto nell'estrazione di metriche finanziarie.
+
+    Estrai TUTTE le metriche quantitative dal documento. Se una metrica non è presente, lasciala come null.
+
+    **METRICHE CRITICHE DA CERCARE**:
+
+    1. **SaaS Metrics**:
+       - ARR (Annual Recurring Revenue)
+       - MRR (Monthly Recurring Revenue)  
+       - Revenue Growth Rate (YoY %)
+       - Gross Margin (%)
+       - LTV/CAC Ratio
+       - CAC Payback (months)
+       - Net Retention Rate (%)
+       - Gross Retention Rate (%)
+       - Monthly Burn Rate
+       - Runway (months)
+
+    2. **Traction Metrics**:
+       - Total Users/Customers
+       - Paying Customers
+       - User Growth Rate (MoM %)
+       - ARPU (Average Revenue Per User)
+       - NPS Score
+       - Enterprise Customers (>$100K ARR)
+
+    3. **Market Metrics**:
+       - TAM (Total Addressable Market)
+       - SAM (Serviceable Addressable Market)
+       - SOM (Serviceable Obtainable Market)
+       - Market Share (%)
+       - Market Growth Rate (CAGR %)
+
+    4. **Team**:
+       - Founders (nome, ruolo, background)
+       - Team Size
+       - Previous Exits dei founder
+
+    5. **Fundraising**:
+       - Round precedenti (stage, amount, date, investors)
+       - Total Raised
+       - Last Valuation
+
+    **REGOLE**:
+    - Converti sempre i valori in formati numerici standardizzati
+    - Es: "$5M ARR" → arr: 5.0
+    - Es: "150% YoY growth" → revenue_growth_rate: 150.0
+    - Es: "18 months runway" → runway_months: 18
+    - Per team, estrai SOLO informazioni esplicite (non inventare)"""),
+            ("user", "Entità: {entity}\n\nDocumento:\n\n{text}")
+        ])
+
+        pipeline = prompt | extractor_chain
+
+        try:
+            metrics = pipeline.invoke({"entity": entity_name, "text": document_text[:5000]})
+            self.log_status(f"✅ Metriche estratte per '{entity_name}'", "success")
+            return metrics
+        except Exception as e:
+            self.log_status(f"❌ Errore estrazione metriche: {e}", "error")
+            return VCMetricsProfile(entity_name=entity_name)
 
 def main():
     """Test CLI."""
