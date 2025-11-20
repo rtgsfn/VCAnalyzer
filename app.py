@@ -17,6 +17,9 @@ from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 
+import io
+from fpdf import FPDF # Per il PDF
+import xlsxwriter # Motore per Excel
 # I nostri Script
 try:
     from analyzer import AgenticKRAG
@@ -50,7 +53,7 @@ MODEL_OPTIONS = {
         "gemini-2.5-flash",
         "gemini-2.0-flash"
     ],
-    "Ollama (Locale)": [
+    "Ollama": [
         "llama3:8b-instruct",
         "gemma:7b-instruct",
         "mixtral:8x7b-instruct",
@@ -479,22 +482,22 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
             # --- Metriche Dinamiche: Questo è il primo blocco visibile ---
             with metrics_placeholder.container():
                 st.markdown(f"# 📊 {sector} Analysis Report")  # TITOLO ALL'INIZIO DEL CONTAINER
-                st.caption(f"Analisi completata in {elapsed:.1f} secondi")
+                #st.caption(f"Analisi completata in {elapsed:.1f} secondi")
                 st.markdown("---")
 
-                vc_metrics = result.get("vc_metrics")
-                if vc_metrics:
-                    st.markdown(f"## 📊 Metriche Chiave Estratte ({sector})")
+                metrics = result.get("metrics")
+                if metrics:
+                    st.markdown(f"## 📊 Metriche Chiave Recuperate")
 
                     # --- LOGICA DI RENDERING DINAMICO ---
 
-                    if isinstance(vc_metrics, VCMetricsProfile):
+                    if isinstance(metrics, VCMetricsProfile):
                         # --- VC PROFILO STANDARD ---
                         tab_names = ["💰 SaaS", "📈 Traction", "🌍 Market", "👥 Team", "💵 Fundraising"]
                         tab_saas, tab_traction, tab_market, tab_team, tab_fundraising = st.tabs(tab_names)
 
                         with tab_saas:
-                            m = vc_metrics.saas_metrics
+                            m = metrics.saas_metrics
                             if m:
                                 c1, c2, c3 = st.columns(3)
                                 c1.metric("ARR", f"${m.arr}M" if m.arr else "-")
@@ -506,7 +509,7 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                                 st.info("Nessuna metrica SaaS estratta.")
 
                         with tab_traction:
-                            m = vc_metrics.traction_metrics
+                            m = metrics.traction_metrics
                             if m:
                                 c1, c2 = st.columns(2)
                                 c1.metric("Utenti Totali", f"{m.total_users:,}" if m.total_users else "-")
@@ -515,7 +518,7 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                                 st.info("Nessuna metrica Traction estratta.")
 
                         with tab_market:
-                            m = vc_metrics.market_metrics
+                            m = metrics.market_metrics
                             if m:
                                 c1, c2, c3 = st.columns(3)
                                 c1.metric("TAM", f"${m.tam}B" if m.tam else "-")
@@ -525,8 +528,8 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                                 st.info("Nessuna metrica Market estratta.")
 
                         with tab_fundraising:
-                            if vc_metrics.fundraising_metrics and vc_metrics.fundraising_metrics.rounds:
-                                for round_data in vc_metrics.fundraising_metrics.rounds:
+                            if metrics.fundraising_metrics and metrics.fundraising_metrics.rounds:
+                                for round_data in metrics.fundraising_metrics.rounds:
                                     st.markdown(f"**{round_data.stage.value}** - ${round_data.amount}M")
                                     if round_data.lead_investor: st.caption(f"Lead: {round_data.lead_investor}")
                                     st.markdown("---")
@@ -534,22 +537,22 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                                 st.info("Nessuna info fundraising estratta.")
 
                         # Rendering del team nel tab Team
-                        if vc_metrics.team_metrics and vc_metrics.team_metrics.founders:
+                        if metrics.team_metrics and metrics.team_metrics.founders:
                             with tab_team:
-                                for founder in vc_metrics.team_metrics.founders:
+                                for founder in metrics.team_metrics.founders:
                                     st.markdown(f"**{founder.name}** - {founder.role}")
                                     if founder.background: st.caption(f"📝 {founder.background}")
                                     st.markdown("---")
                                 else:
                                     st.info("Nessuna info team estratta.")
 
-                    elif isinstance(vc_metrics, REMetricsProfile):
+                    elif isinstance(metrics, REMetricsProfile):
                         # --- REAL ESTATE PROFILO ---
                         tab_names = ["🏠 Finanziarie RE", "🌍 Mercato (VC)", "👥 Team"]
                         tab_re, tab_market, tab_team = st.tabs(tab_names)
 
                         with tab_re:
-                            m = vc_metrics.re_metrics
+                            m = metrics.re_metrics
                             if m:
                                 st.metric("Capitalization Rate (Cap Rate)", f"{m.cap_rate}%" if m.cap_rate else "-")
                                 st.metric("Internal Rate of Return (IRR)", f"{m.irr}%" if m.irr else "-")
@@ -562,7 +565,7 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                         # (Continuazione del rendering dinamico per gli altri settori)
 
                         # Rendering del team nel tab Team
-                        team_metrics = getattr(vc_metrics, 'team_metrics', None)
+                        team_metrics = getattr(metrics, 'team_metrics', None)
                         if team_metrics:
                             with tab_team:
                                 if team_metrics.founders:
@@ -573,10 +576,88 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                                 else:
                                     st.info("Nessuna info team estratta.")
 
-                        # ... (Aggiungere qui la logica per Pharma, Legal, ecc. usando lo stesso pattern with tab_nome) ...
+                    elif isinstance(metrics, PharmaMetricsProfile):
+                        # --- PHARMA & BIOTECH PROFILO ---
+                        tab_names = ["🧪 R&D Pipeline", "👥 Team", "💵 Fundraising"]
+                        tab_rd, tab_team, tab_fundraising = st.tabs(tab_names)
 
-                    # Logica aggiunta per il rendering degli altri profili metrici come Pharma, Legal...
-                    # Nota: La logica dei tab Team/Fundraising deve essere adattata per Pharma/Legal se riutilizzano gli slot VC.
+                        with tab_rd:
+                            m = metrics.rd_metrics
+                            if m:
+                                # Prima riga di metriche
+                                c1, c2, c3 = st.columns(3)
+                                c1.metric("Fase Clinica", m.clinical_trial_phase if m.clinical_trial_phase else "-")
+                                c2.metric("FDA Status", m.fda_approval_status if m.fda_approval_status else "-")
+                                c3.metric("Time to Market",
+                                          f"{m.time_to_market_years} anni" if m.time_to_market_years else "-")
+
+                                st.markdown("---")
+
+                                # Seconda riga
+                                c4, c5 = st.columns(2)
+                                c4.metric("Scadenza Brevetto", m.patent_expiry_date if m.patent_expiry_date else "-")
+                                c5.metric("R&D Burn Rate", f"${m.rd_burn_rate_m}M/mo" if m.rd_burn_rate_m else "-")
+
+                                if m.efficacy_data:
+                                    st.info(f"📊 **Dati Efficacia**: {m.efficacy_data}")
+                            else:
+                                st.info("Nessuna metrica R&D estratta.")
+
+                        # Rendering Team (Logica riutilizzata)
+                        with tab_team:
+                            if metrics.team_metrics and metrics.team_metrics.founders:
+                                for founder in metrics.team_metrics.founders:
+                                    st.markdown(f"**{founder.name}** - {founder.role}")
+                                    if founder.background: st.caption(f"📝 {founder.background}")
+                                    st.markdown("---")
+                            else:
+                                st.info("Nessuna info team estratta.")
+
+                        # Rendering Fundraising (Logica riutilizzata)
+                        with tab_fundraising:
+                            if metrics.fundraising_metrics and metrics.fundraising_metrics.rounds:
+                                for round_data in metrics.fundraising_metrics.rounds:
+                                    st.markdown(f"**{round_data.stage.value}** - ${round_data.amount}M")
+                                    if round_data.lead_investor: st.caption(f"Lead: {round_data.lead_investor}")
+                                    st.markdown("---")
+                            else:
+                                st.info("Nessuna info fundraising estratta.")
+
+                    elif isinstance(metrics, LegalMetricsProfile):
+                        # --- LEGAL / M&A PROFILO ---
+                        tab_names = ["⚖️ Risk & Compliance", "👥 Team"]
+                        tab_legal, tab_team = st.tabs(tab_names)
+
+                        with tab_legal:
+                            m = metrics.legal_metrics
+                            if m:
+                                c1, c2 = st.columns(2)
+
+                                # Helper per visualizzazione booleani
+                                gdpr_val = "✅ Compliant" if m.gdpr_compliance else (
+                                    "⚠️ Non specificato" if m.gdpr_compliance is None else "❌ Non Compliant")
+                                coc_val = "✅ Presente" if m.change_of_control_clause else "❌ Assente"
+
+                                c1.metric("GDPR / Privacy", gdpr_val)
+                                c1.metric("Contenziosi Pendenti",
+                                          m.pending_litigation_count if m.pending_litigation_count is not None else "0")
+                                c1.metric("Status IP", m.ip_status if m.ip_status else "-")
+
+                                c2.metric("Certificazioni (ISO/SOC)",
+                                          str(m.iso_soc_certified) if m.iso_soc_certified else "-")
+                                c2.metric("Clausola Change of Control", coc_val)
+                            else:
+                                st.info("Nessuna metrica legale estratta.")
+
+                        # Rendering Team (Logica riutilizzata)
+                        with tab_team:
+                            if metrics.team_metrics and metrics.team_metrics.founders:
+                                for founder in metrics.team_metrics.founders:
+                                    st.markdown(f"**{founder.name}** - {founder.role}")
+                                    if founder.background: st.caption(f"📝 {founder.background}")
+                                    st.markdown("---")
+                            else:
+                                st.info("Nessuna info team estratta.")
 
             # --- 2. Report Testuali (Subito dopo le Metriche) ---
             with results_placeholder.container():
@@ -613,17 +694,104 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
         st.markdown("---")
         st.markdown("### 📥 Download Report")
 
-        full_report_text = f"""# Report: {entity_to_analyze}
-    Mode: {analysis_mode}
+        # 1. Preparazione Dati
+        full_report_text = f"""REPORT DI ANALISI: {entity_to_analyze}
+        --------------------------------------------------
+        Mode: {analysis_mode}
+        Data: {time.strftime("%Y-%m-%d %H:%M:%S")}
 
-    {result.get('executive_summary', '')}
+        1. EXECUTIVE SUMMARY
+        --------------------
+        {result.get('executive_summary', 'N/A')}
 
-    {result.get('metrics_analysis', '')}
-    {result.get('risk_analysis', '')}
-    {result.get('feasibility_analysis', '')}
-    """
-        st.download_button("📄 Scarica Report Completo (MD)", full_report_text,
-                           file_name=f"report_{entity_to_analyze}.md")
+        2. RISK ANALYSIS
+        ----------------
+        {result.get('risk_analysis', 'N/A')}
+
+        3. FEASIBILITY ANALYSIS
+        -----------------------
+        {result.get('feasibility_analysis', 'N/A')}
+
+        4. METRICS ANALYSIS
+        -------------------
+        {result.get('metrics_analysis', 'N/A')}
+        """
+
+        # Preparazione DataFrame Fact-Checking per CSV/Excel
+        df_facts = pd.DataFrame(result.get("fact_checking_table", []))
+
+        # Colonne per il download (4 pulsanti in fila)
+        col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+
+        # --- A. DOWNLOAD TXT ---
+        with col_d1:
+            st.download_button(
+                "📄 Report TXT",
+                full_report_text,
+                file_name=f"Report_{entity_to_analyze}.txt",
+                mime="text/plain"
+            )
+
+        # --- B. DOWNLOAD CSV (Solo Fact Checking) ---
+        with col_d2:
+            if not df_facts.empty:
+                csv_data = df_facts.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📊 Fact-Check CSV",
+                    csv_data,
+                    file_name=f"FactCheck_{entity_to_analyze}.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.button("📊 CSV (No Dati)", disabled=True)
+
+        # --- C. DOWNLOAD EXCEL (Report Completo) ---
+        with col_d3:
+            buffer_excel = io.BytesIO()
+            with pd.ExcelWriter(buffer_excel, engine='xlsxwriter') as writer:
+                # Foglio 1: Fact Checking
+                if not df_facts.empty:
+                    df_facts.to_excel(writer, sheet_name='Fact Checking', index=False)
+
+                # Foglio 2: Summary Testuale (Hack per mettere testo in celle)
+                df_summary = pd.DataFrame([x.split('\n') for x in full_report_text.split('\n\n')])
+                df_summary.to_excel(writer, sheet_name='Report Text', index=False, header=False)
+
+            st.download_button(
+                "📗 Report Excel",
+                buffer_excel.getvalue(),
+                file_name=f"Report_{entity_to_analyze}.xlsx",
+                mime="application/vnd.ms-excel"
+            )
+
+        # --- D. DOWNLOAD PDF ---
+        with col_d4:
+            class PDF(FPDF):
+                def header(self):
+                    self.set_font('Arial', 'B', 15)
+                    self.cell(0, 10, f'VC Report: {entity_to_analyze}', 0, 1, 'C')
+                    self.ln(10)
+
+
+            try:
+                pdf = PDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=12)
+
+                # Sanificazione testo per FPDF (rimuove caratteri non-latin-1 che causano crash)
+                safe_text = full_report_text.encode('latin-1', 'replace').decode('latin-1')
+                pdf.multi_cell(0, 10, safe_text)
+
+                pdf_output = pdf.output(dest='S').encode('latin-1')
+
+                st.download_button(
+                    "📕 Report PDF",
+                    pdf_output,
+                    file_name=f"Report_{entity_to_analyze}.pdf",
+                    mime="application/pdf"
+                )
+            except Exception as e:
+                st.error(f"Errore PDF: {e}")
 
         status_container.success(f"✅ Analisi completata in {elapsed:.1f} secondi!")
 
@@ -633,8 +801,6 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
 
         with st.expander("Dettagli tecnico"):
             st.code(traceback.format_exc())
-    finally:
-        if agent: agent.close_graph_connection()
 
 # Footer
 st.markdown("---")

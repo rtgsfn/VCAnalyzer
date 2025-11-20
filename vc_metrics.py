@@ -5,7 +5,7 @@ Questo modulo definisce le metriche chiave che i VC analizzano durante la due di
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Union
 from enum import Enum
 
 # ============================================================================
@@ -102,8 +102,7 @@ class TractionMetrics(BaseModel):
     enterprise_customers: Optional[int] = Field(None, description="Numero clienti Enterprise (>100K ARR)")
     average_contract_value: Optional[float] = Field(None, description="ACV - Average Contract Value ($K)")
 
-    metrics_status: Dict[str, MetricStatus] = Field(default_factory=dict)
-
+    metrics_status: Optional[Dict[str, MetricStatus]] = Field(default_factory=dict)
 
 # ============================================================================
 # METRICHE DI MERCATO
@@ -121,8 +120,7 @@ class MarketMetrics(BaseModel):
 
     competitive_position: Optional[str] = Field(None, description="Posizione competitiva (Leader/Challenger/Niche)")
 
-    metrics_status: Dict[str, MetricStatus] = Field(default_factory=dict)
-
+    metrics_status: Optional[Dict[str, MetricStatus]] = Field(default_factory=dict)
 
 # ============================================================================
 # METRICHE DI TEAM
@@ -386,7 +384,8 @@ class REMetricsProfile(BaseModel):
 # Legal / M&A Metrics
 class LegalRiskMetrics(BaseModel):
     gdpr_compliance: Optional[bool] = Field(None, description="Verifica esplicita di conformità GDPR/CCPA.")
-    iso_soc_certified: Optional[str] = Field(None, description="Certificazioni di sicurezza/compliance (es. ISO 27001, SOC 2).")
+    iso_soc_certified: Optional[Union[str, bool]] = Field(None,
+                                                          description="Certificazioni di sicurezza/compliance (es. ISO 27001, SOC 2) o True se presenti.")
     pending_litigation_count: Optional[int] = Field(None, description="Numero di contenziosi legali pendenti.")
     ip_status: Optional[str] = Field(None, description="Stato della Proprietà Intellettuale (Brevettato, In attesa, Nessuno).")
     change_of_control_clause: Optional[bool] = Field(None, description="Presenza di clausole di Change of Control in contratti chiave.")

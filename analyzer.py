@@ -18,7 +18,7 @@ from scraper import scrape_article_text
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_community.chat_models import ChatOllama
+from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_tavily import TavilySearch
@@ -122,12 +122,22 @@ class AgenticKRAG:
             llm_leggero = ChatGoogleGenerativeAI(model=model_name, temperature=0, google_api_key=api_key, max_retries=5)
             llm_pro = ChatGoogleGenerativeAI(model=model_name, temperature=0.3, google_api_key=api_key, max_retries=5)
         elif provider == "Ollama":
+            # Default localhost, ma permettiamo override dal .env
+            base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
+            # Impostiamo un timeout più alto (es. 120 secondi) perché il modello cloud
+            # potrebbe metterci un po' a rispondere.
+            # Nota: 'timeout' è supportato nelle versioni recenti di langchain_community
+            llm_leggero = ChatOllama(model=model_name, temperature=0, base_url=base_url)
+            llm_pro = ChatOllama(model=model_name, temperature=0.3, base_url=base_url)
+
             try:
-                llm_leggero = ChatOllama(model=model_name, temperature=0, )
-                llm_pro = ChatOllama(model=model_name, temperature=0.3)
-                llm_leggero.invoke("Ciao")
+                # Tentiamo un test rapido, ma NON blocchiamo l'app se fallisce (es. per timeout)
+                print(f"Test connessione Ollama ({model_name})...")
+                llm_leggero.invoke("Test")
             except Exception as e:
-                raise ConnectionError(f"Impossibile connettersi a Ollama. Dettagli: {e}")
+                # Logghiamo solo un warning invece di crashare con ConnectionError
+                self.log_status(f"⚠️ Warning: Test Ollama lento o fallito ({e}), ma procedo con l'analisi.", "warning")
         else:
             raise ValueError(f"Provider '{provider}' non supportato.")
         return llm_leggero, llm_pro
@@ -275,10 +285,48 @@ Output: {{"entity_name": "Sequoia Capital", "entity_type": "fund", "confidence":
     # Tool 2: Estrazione Affermazioni (OTTIMIZZATO PER VC)
     # ============================================================================
 
-    def extract_claims_from_text(self, document_text: str, silent: bool = False) -> List[Claim]:
-            """Estrae claim focalizzati su metriche VC critiche."""
+    def extract_claims_from_text(self, document_text: str, sector: str = "Venture Capital", silent: bool = False) -> \
+        List[Claim]:
+            """
+            Estrae claim fattuali verificabili, adattando le priorità in base al settore.
+            """
             if not silent:
-                self.log_status("🔬 [Tool 2] Estrazione affermazioni fattuali (focus VC)", "info")
+                self.log_status(f"🔬 [Tool 2] Estrazione affermazioni fattuali (Focus: {sector})", "info")
+
+            # 1. Definiamo le istruzioni specifiche per settore
+            SECTOR_CLAIM_INSTRUCTIONS = {
+                "Venture Capital": """
+        PRIORITÀ (VC):
+        1. Metriche Finanziarie: Revenue, ARR, MRR, burn rate.
+        2. Traction: Clienti, growth, retention, churn.
+        3. Fundraising: Round precedenti, valuation, investitori.
+        4. Team: Background fondatori, exit precedenti.
+        """,
+                "Real Estate": """
+        PRIORITÀ (Real Estate):
+        1. Dati Immobile: Metratura, anno costruzione, ristrutturazioni recenti.
+        2. Finanziari: NOI (Net Operating Income), Cap Rate, canoni affitto attuali.
+        3. Occupancy: Tasso occupazione, durata contratti, inquilini (tenant).
+        4. Location: Distanza da trasporti, sviluppi zona, claim su quartiere.
+        """,
+                "Pharma & Biotech": """
+        PRIORITÀ (Pharma):
+        1. Trial Clinici: Fase attuale (I/II/III), numero pazienti, endpoint raggiunti.
+        2. Regolatorio: Status approvazione FDA/EMA, orphan drug designation.
+        3. IP & Brevetti: Date scadenza brevetti, esclusività di mercato.
+        4. Scientifici: Pubblicazioni citate, partnership accademiche.
+        """,
+                "Legal / M&A": """
+        PRIORITÀ (Legal/M&A):
+        1. Compliance: Certificazioni possedute (ISO, SOC2), conformità GDPR.
+        2. Contenziosi: Assenza/Presenza di cause legali (litigation) passate o pendenti.
+        3. Contrattuale: Clausole Change of Control, esclusività, non-compete.
+        4. IP Ownership: Piena titolarità del codice/marchio, assenza violazioni.
+        """
+            }
+
+            # Selezioniamo le istruzioni corrette (default VC)
+            claim_hints = SECTOR_CLAIM_INSTRUCTIONS.get(sector, SECTOR_CLAIM_INSTRUCTIONS["Venture Capital"])
 
             try:
                 extractor_chain = self.llm_pro.with_structured_output(DocumentClaims)
@@ -287,50 +335,22 @@ Output: {{"entity_name": "Sequoia Capital", "entity_type": "fund", "confidence":
                     self.log_status(f"❌ Errore setup extraction chain: {e}", "error")
                 return []
 
+            # 2. Prompt Dinamico
             prompt = ChatPromptTemplate.from_messages([
-                ("system", """Sei un analista VC senior. Estrai SOLO affermazioni VERIFICABILI e CRITICHE per una due diligence.
+                ("system", f"""Sei un analista esperto in Due Diligence per il settore **{sector}**. 
+    Estrai SOLO affermazioni VERIFICABILI e CRITICHE.
 
-    PRIORITÀ (ordine di importanza):
-    1. **Metriche Finanziarie**: Revenue, ARR, MRR, burn rate, runway, profitability
-    2. **Traction**: Numero clienti, user growth, retention rate, NPS
-    3. **Fundraising**: Round precedenti, valuation, investitori, termini
-    4. **Team**: Background fondatori (aziende precedenti, università, exit)
-    5. **Mercato**: Market size (TAM/SAM/SOM), competitori, market share
-    6. **Prodotto**: Launch date, feature specifiche, brevetti, IP
+    {claim_hints}
 
     IGNORA:
-    - Opinioni soggettive ("siamo i migliori", "rivoluzionario")
-    - Proiezioni future generiche ("cresceremo 10x")
-    - Marketing fluff senza numeri
+    - Opinioni soggettive ("siamo i migliori", "bellissima location")
+    - Proiezioni future generiche senza basi ("diventeremo leader")
+    - Marketing fluff
 
-    ESEMPI VC-FOCUSED:
-
-    [INPUT 1]
-    "La nostra startup ha raggiunto $2M ARR nel 2023 con una crescita MoM del 15%. Abbiamo 50 clienti enterprise e un net retention rate del 120%."
-
-    [OUTPUT 1]
-    [
-        {{"soggetto": "[Nome Startup]", "affermazione": "ha raggiunto $2M ARR nel 2023"}},
-        {{"soggetto": "[Nome Startup]", "affermazione": "ha una crescita MoM del 15%"}},
-        {{"soggetto": "[Nome Startup]", "affermazione": "ha 50 clienti enterprise"}},
-        {{"soggetto": "[Nome Startup]", "affermazione": "ha un net retention rate del 120%"}}
-    ]
-
-    [INPUT 2]
-    "Il nostro CEO, Mario Rossi, è ex-VP Engineering di Google e ha un PhD in AI da Stanford. Il nostro CTO ha fondato e venduto due startup SaaS."
-
-    [OUTPUT 2]
-    [
-        {{"soggetto": "Mario Rossi", "affermazione": "è stato VP Engineering di Google"}},
-        {{"soggetto": "Mario Rossi", "affermazione": "ha un PhD in AI da Stanford"}},
-        {{"soggetto": "[CTO Nome]", "affermazione": "ha fondato e venduto due startup SaaS"}}
-    ]
-
-    [INPUT 3]
-    "Il mercato del nostro settore crescerà rapidamente. Siamo la soluzione migliore."
-
-    [OUTPUT 3]
-    []
+    ESEMPI DI OUTPUT VALIDO:
+    - "La società ha un NOI di 5.2M€" (Real Estate)
+    - "Il farmaco è in Fase IIb" (Pharma)
+    - "Certificazione ISO 27001 ottenuta nel 2023" (Legal)
     """),
                 ("user", "Documento da analizzare:\n\n{testo}")
             ])
@@ -338,9 +358,10 @@ Output: {{"entity_name": "Sequoia Capital", "entity_type": "fund", "confidence":
             pipeline = prompt | extractor_chain
 
             try:
-                risultato = pipeline.invoke({"testo": document_text})
+                # Tronchiamo a 30k char per evitare errori 400 su documenti enormi
+                risultato = pipeline.invoke({"testo": document_text[:30000]})
                 if not silent:
-                    self.log_status(f"✅ [Tool 2] Estratte {len(risultato.claims)} affermazioni verificabili", "success")
+                    self.log_status(f"✅ [Tool 2] Estratte {len(risultato.claims)} affermazioni ({sector})", "success")
                 return risultato.claims
             except Exception as e:
                 if not silent:
@@ -1008,7 +1029,7 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
                 results["executive_summary"] = gap_report
 
                 # Campi vuoti per UI
-                results["vc_metrics"] = None
+                results["metrics"] = None
                 results["fact_checking_table"] = []
                 results["metrics_analysis"] = ""
                 results["risk_analysis"] = ""
@@ -1035,8 +1056,8 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
                 self.log_status("🔄 Analisi Documentale Parallela...", "info")
                 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                     future_rag = executor.submit(self.get_document_context, doc_retriever, entita_focus, silent=True)
-                    future_claims = executor.submit(self.extract_claims_from_text, document_text, silent=True)
-
+                    future_claims = executor.submit(self.extract_claims_from_text, document_text, sector=sector,
+                                                    silent=True)
                     contesto_rag = future_rag.result()
                     claims_list = future_claims.result()
 
@@ -1238,45 +1259,54 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
 
         return merged
 
-    def _merge_metrics_profiles(self, doc_profile: SectorMetricsProfile,
-                           web_profile: SectorMetricsProfile) -> SectorMetricsProfile:
-        # Questa funzione ora deve accettare e restituire i tipi dinamici
-
-        # Se i tipi sono diversi, qualcosa è andato storto; restituisce il Doc Profile
+    def _merge_metrics_profiles(self, doc_profile, web_profile):
+        """
+        Fonde due profili metriche (Doc > Web) preservando i tipi Pydantic.
+        """
+        # Se i profili sono di tipo diverso, vince sempre il documento
         if type(doc_profile) != type(web_profile):
-            self.log_status("⚠️ Tipi di metriche non corrispondenti nel merge. Uso solo dati documento.", "warning")
+            self.log_status("⚠️ Tipi di metriche non corrispondenti. Uso dati documento.", "warning")
             return doc_profile
 
-        # L'oggetto Pydantic ha il metodo copy/update
+        # 1. Creiamo una copia base partendo dal Web (deep copy per sicurezza)
         merged = web_profile.model_copy(deep=True)
 
-        # Itera sui campi del documento e sovrascrivi i campi valorizzati
-        for field_name, doc_value in doc_profile.model_dump(exclude_none=True).items():
-            if field_name != 'entity_name':
-                # Se è un sub-modello, lo uniamo a livello di sub-modello
-                if isinstance(doc_value, BaseModel) and hasattr(merged, field_name):
-                    web_sub_model = getattr(web_profile, field_name)
+        # 2. Iteriamo sui campi del DOCUMENTO (usando model_fields per Pydantic v2)
+        # Nota: Non usiamo model_dump() per evitare di convertire gli oggetti in dict
+        for field_name in doc_profile.model_fields:
+            if field_name == 'entity_name':
+                continue
 
-                    # Se il sub-modello del doc è valorizzato, usiamo i suoi dati per aggiornare il sub-modello web
-                    if doc_value:
-                        web_sub_model_data = web_sub_model.model_dump(exclude_none=True) if web_sub_model else {}
-                        doc_sub_model_data = doc_value.model_dump(exclude_none=True)
+            # Preleviamo i valori reali (oggetti)
+            doc_value = getattr(doc_profile, field_name)
+            web_value = getattr(web_profile, field_name)
 
-                        # Unisce i due dizionari (doc sovrascrive web)
-                        merged_sub_data = {**web_sub_model_data, **doc_sub_model_data}
+            # Se il documento non ha dati per questo campo, saltiamo (teniamo il web)
+            if doc_value is None:
+                continue
 
-                        # Ricrea il sub-modello corretto
-                        setattr(merged, field_name, type(doc_value)(**merged_sub_data))
+            # Gestione Sottomodelli (es. legal_metrics, saas_metrics)
+            if isinstance(doc_value, BaseModel):
+                # Se anche il web ha un valore valido per questo sottomodello, facciamo il merge
+                if web_value is not None and isinstance(web_value, BaseModel):
+                    web_data = web_value.model_dump(exclude_none=True)
+                    doc_data = doc_value.model_dump(exclude_none=True)
 
-                elif isinstance(doc_value, list):
-                    # Le liste (come founders o rounds) vengono sovrascritte interamente
-                    setattr(merged, field_name, doc_value)
+                    # Merge dei dizionari: Doc sovrascrive Web
+                    merged_data = {**web_data, **doc_data}
 
+                    # RIGENERIAMO L'OGGETTO DEL TIPO CORRETTO
+                    # es. LegalRiskMetrics(**merged_data)
+                    new_sub_obj = type(doc_value)(**merged_data)
+                    setattr(merged, field_name, new_sub_obj)
                 else:
-                    # Campo semplice (str, float, bool)
+                    # Se il web è vuoto, usiamo direttamente l'oggetto del doc
                     setattr(merged, field_name, doc_value)
 
-        self.log_status("  ✅ Merge dei profili completato.", "success")
+            # Gestione Liste e Tipi Semplici (int, str, list) -> Doc vince su tutto
+            else:
+                setattr(merged, field_name, doc_value)
+
         return merged
 
     def augment_metrics_from_web(self, metrics_from_doc: SectorMetricsProfile, entity_name: str, is_deep_search: bool, sector: str) -> SectorMetricsProfile:
@@ -1336,7 +1366,7 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
             return metrics_from_doc
 
         # 4. Mergia i due profili
-        final_metrics = self._merge_vc_profiles(metrics_from_doc, metrics_from_web)
+        final_metrics = self._merge_metrics_profiles(metrics_from_doc, metrics_from_web)
 
         return final_metrics
 
