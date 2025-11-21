@@ -20,7 +20,7 @@ from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_tavily import TavilySearch
 from collections import Counter
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -688,44 +688,63 @@ Verdetto:""")
 
     SECTOR_METRIC_HINTS = config.SECTOR_METRIC_HINTS
 
-    def extract_sector_metrics(self, document_text: str, entity_name: str, sector: str) -> VCMetricsProfile:
+    def extract_sector_metrics(self, document_text: str, entity_name: str, sector: str) -> SectorMetricsProfile:
         """
-        Estrae metriche chiave specializzate dal documento, adattando il focus al settore.
+        Estrae metriche chiave specializzate dal documento.
+        FIX: Usa JsonOutputParser invece di 'with_structured_output' per evitare errori di tool calling (400).
         """
-        self.log_status(f"📊 Estrazione metriche chiave per '{sector}'", "info")
+        self.log_status(f"📊 Estrazione metriche chiave per '{sector}' (JSON Mode)", "info")
 
-        # 1. Seleziona il modello corretto
+        # 1. Seleziona il modello Pydantic corretto
         MetricsProfileClass = self.METRIC_MODEL_MAP.get(sector, VCMetricsProfile)
 
-        try:
-            extractor_chain = self.llm_pro.with_structured_output(MetricsProfileClass)
-        except Exception as e:
-            self.log_status(f"⚠️ Errore setup extraction chain per {sector}: {e}", "warning")
-            return VCMetricsProfile(entity_name=entity_name)  # Fallback al modello VC
+        # 2. Setup del Parser JSON
+        # Questo bypassa il sistema di "funzioni" dell'API che sta dando problemi
+        parser = JsonOutputParser(pydantic_object=MetricsProfileClass)
 
-        # 2. Prepara il prompt specifico (Mantieni la logica dinamica)
+        # 3. Prepara il prompt con le istruzioni di formato
         sector_hints = self.SECTOR_METRIC_HINTS.get(sector, self.SECTOR_METRIC_HINTS["Venture Capital"])
 
         prompt = ChatPromptTemplate.from_messages([
-            ("system", f"""Sei un analista esperto nel settore {sector}. Estrai TUTTE le metriche quantitative dal documento.
+            ("system", """Sei un analista esperto nel settore {sector}. 
+            Il tuo compito è estrarre TUTTE le metriche quantitative dal documento e restituirle in formato JSON strutturato.
 
-            **FOCUS SPECIFICO PER {sector.upper()}**:
+            {format_instructions}
+
+            **FOCUS SPECIFICO PER {sector_upper}**:
             {sector_hints}
 
-            **SCHEMA**:
-            Devi popolare lo schema Pydantic fornito. Mappa le informazioni specifiche del settore nei campi più appropriati dello schema. Sii preciso e non inventare dati."""),
+            **REGOLE**:
+            - Estrai solo ciò che è esplicitamente nel testo.
+            - Se un valore non è presente, usa null (non inventare).
+            - Rispetta rigorosamente la struttura JSON richiesta."""),
             ("user", "Entità: {entity}\n\nDocumento:\n\n{text}")
         ])
 
-        pipeline = prompt | extractor_chain
+        # Pipeline: Prompt -> LLM -> Parser JSON
+        pipeline = prompt | self.llm_pro | parser
 
         try:
-            metrics = pipeline.invoke({"entity": entity_name, "text": document_text[:5000]})
+            # Invocazione
+            metrics_dict = pipeline.invoke({
+                "entity": entity_name,
+                "text": document_text[:15000],  # Troncamento sicuro
+                "sector": sector,
+                "sector_upper": sector.upper(),
+                "sector_hints": sector_hints,
+                "format_instructions": parser.get_format_instructions()
+            })
+
+            # 4. Validazione e Conversione in Oggetto Pydantic
+            # Convertiamo il dizionario grezzo nell'oggetto tipizzato corretto
+            metrics_obj = MetricsProfileClass(**metrics_dict)
+
             self.log_status(f"✅ Metriche estratte per '{entity_name}' ({MetricsProfileClass.__name__})", "success")
-            return metrics
+            return metrics_obj
+
         except Exception as e:
             self.log_status(f"❌ Errore estrazione metriche: {e}", "error")
-            # Restituisce un oggetto vuoto del tipo corretto in caso di errore
+            # In caso di errore, restituisci un oggetto vuoto per non bloccare il flusso
             return MetricsProfileClass(entity_name=entity_name)
 
     def generate_metrics_analysis(self, metrics, persona: str) -> str:
@@ -805,56 +824,80 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
             return f"## ❌ Errore Analisi Metriche\n\nSi è verificato un errore durante la generazione dell'analisi: {e}"
 
     def generate_risk_analysis(self, entity_name: str, fact_checking_summary: str,
-                               graph_context: str, metrics_analysis: str, persona: str) -> str:
+                               graph_context: str, metrics_analysis: str, persona: str,
+                               sector: str = "Venture Capital") -> str:
         """
-        Genera SOLO l'analisi dei rischi (chiamata separata per streaming).
+        Genera analisi dei rischi specializzata per il settore.
         """
-        self.log_status("🚩 Generazione Risk Analysis", "info")
-        if not persona: persona = "Sei un Partner Senior di un fondo VC top-tier (Sequoia level)."
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", f"""{persona} Stai conducendo un Risk Assesment.
+        self.log_status(f"🚩 Generazione Risk Analysis ({sector})", "info")
 
-    Analizza TUTTI i dati disponibili e identifica rischi investimento, categorizzati per severity.
+        if not persona:
+            persona = "Sei un Partner Senior esperto in analisi dei rischi."
+
+        # DEFINIZIONE CATEGORIE DI RISCHIO DINAMICHE
+        RISK_DEFINITIONS = {
+            "Venture Capital": """
+    1. **Market Risk**: Timing, competizione, dimensione mercato (TAM)
+    2. **Execution Risk**: Team capability, product-market fit
+    3. **Financial Risk**: Burn rate, runway, unit economics
+    4. **Technology Risk**: Difendibilità IP, debito tecnico
+    5. **Legal/Regulatory**: Compliance, IP ownership
+            """,
+            "Real Estate": """
+    1. **Location Risk**: Degradazione quartiere, mancanza servizi, criminalità
+    2. **Tenant/Vacancy Risk**: Rischio sfitto, solvibilità inquilini, durata contratti
+    3. **Structural/Capex Risk**: Manutenzione straordinaria, efficienza energetica, conformità impianti
+    4. **Financial/Rate Risk**: Tassi interesse, Cap Rate compression, Cash flow volatility
+    5. **Regulatory/Zoning**: Cambi destinazione d'uso, abusi edilizi
+            """,
+            "Pharma & Biotech": """
+    1. **Clinical Risk**: Fallimento trial (Fase I/II/III), safety concerns
+    2. **Regulatory Risk**: Bocciatura FDA/EMA, ritardi approvazione
+    3. **Patent Cliff**: Scadenza brevetti, ingresso generici/biosimilari
+    4. **Funding Risk**: Alto cash burn R&D, necessità aumenti capitale
+    5. **Commercial Risk**: Pricing, rimborso assicurativo, adozione medici
+            """,
+            "Legal / M&A": """
+    1. **Litigation Risk**: Cause pendenti, class action, passività potenziali
+    2. **Compliance Risk**: Violazioni GDPR, corruzione, sicurezza sul lavoro
+    3. **Contractual Risk**: Clausole Change of Control, recesso, patti non concorrenza
+    4. **IP Title Risk**: Catena titolarità diritti, software open-source non dichiarato
+    5. **Deal Execution**: Antitrust, approvazioni governative (Golden Power)
+            """
+        }
+
+        risk_categories = RISK_DEFINITIONS.get(sector, RISK_DEFINITIONS["Venture Capital"])
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", f"""{persona} Stai conducendo un Risk Assessment approfondito.
+
+    Analizza TUTTI i dati disponibili e identifica rischi categorizzati per severity.
+
+    **CATEGORIE DI RISCHIO SPECIFICHE PER {sector.upper()} DA ANALIZZARE**:
+    {risk_categories}
 
     **OUTPUT FORMATO**:
 
-    ## 🚩 Risk Analysis
+    ## 🚩 Risk Analysis ({sector})
 
     ### 🔴 CRITICAL RISKS (Deal-Breakers)
-    [Rischi che potrebbero far passare sull'investment]
     - **[Risk Name]**: [Description + Impact + Evidence]
 
     ### 🟡 MEDIUM RISKS (Require Mitigation)
-    [Rischi gestibili ma che richiedono piano di mitigazione]
     - **[Risk Name]**: [Description + Mitigation Strategy]
 
     ### 🟢 LOW RISKS (Monitoring)
-    [Rischi minori da monitorare]
+    - **[Risk Name]**: [Description]
 
-    **CATEGORIE DI RISCHIO DA ANALIZZARE**:
-    1. **Market Risk**: Timing, competizione, dimensione mercato
-    2. **Execution Risk**: Team capability, product-market fit
-    3. **Financial Risk**: Burn rate, unit economics, capitalization
-    4. **Technology Risk**: Moat difendibilità, scalabilità tecnica
-    5. **Team Risk**: Founder experience, key person dependency
-    6. **Legal/Regulatory Risk**: Compliance, IP, litigation
+    **REGOLE DI EXPLAINABILITY (OBBLIGATORIE)**:
+    - **DEVI CITARE LE FONTI** usando questi tag alla fine di ogni punto:
+        - `[DOC_RAG]`: Se trovato nel documento.
+        - `[METRICS]`: Se derivato dai numeri.
+        - `[FACT_CHECK]`: Se confermato/smentito dal web.
+        - `[GRAPH]`: Se derivato da relazioni storiche (es. fallimenti passati).
 
-    **REGOLE**:
-    - CRITICAL = può far fallire l'investment
-    - MEDIUM = richiede azione ma gestibile
-    - LOW = awareness sufficiente
-    - EVIDENZIA discrepanze tra documento e fatti pubblici come RED FLAG
-    - **DEVI ASSOLUTAMENTE CITARE LE TUE FONTI PER OGNI PUNTO.**
-    - Usa questi tag di citazione alla fine di ogni frase o punto:
-        - `[DOC_RAG]`: Se l'informazione proviene dal contesto semantico del documento.
-        - `[METRICS]`: Se l'informazione proviene dall'analisi delle metriche VC.
-        - `[FACT_CHECK]`: Se l'informazione proviene dal fact-checking (es. claim FALSO o VERIFICATO).
-        - `[GRAPH]`: Se l'informazione proviene dal Knowledge Graph pubblico.
-        - `[DOC_METRICS]`: Se l'informazione proviene dalle metriche estratte DAL SOLO documento.
-        
     ESEMPIO:
-    - **[Rischio]**: Il team dichiara esperienza decennale `[DOC_RAG]`, ma questa affermazione è risultata NON VERIFICABILE `[FACT_CHECK]`.
-    - **[Rischio]**: L'ARR è inferiore ai benchmark di settore `[METRICS]`.
+    - **[Tenant Risk]**: Il contratto principale scade tra 6 mesi `[DOC_RAG]`, e il tenant è in difficoltà finanziarie secondo le news recenti `[FACT_CHECK]`.
     """),
             ("user", """Entità: {entity}
 
@@ -1080,7 +1123,7 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
                 results["metrics_analysis"] = metrics_analysis
 
                 risk_analysis = self.generate_risk_analysis(entita_focus, fact_checking_summary, contesto_grafo,
-                                                            metrics_analysis, persona)
+                                                            metrics_analysis, persona, sector)
                 results["risk_analysis"] = risk_analysis
 
                 feasibility_analysis = self.generate_feasibility_analysis(entita_focus, contesto_rag, metrics_analysis,
@@ -1096,19 +1139,51 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
             # ====================================================================
             elapsed = time.time() - analysis_start
 
-            claims_cnt = len(results.get("fact_checking_table", []))
-            verified_cnt = len([c for c in results.get("fact_checking_table", []) if c["status"] == "VERIFICATA"])
+            # 1. Fact-Checking Score (Pesato)
+            # VERIFICATA = 1.0, PARZIALMENTE = 0.5, ALTRI = 0.0
+            claims_list = results.get("fact_checking_table", [])
+            claims_cnt = len(claims_list)
+            verified_cnt = len([c for c in claims_list if c["status"] == "VERIFICATA"])
+            partial_cnt = len([c for c in claims_list if c["status"] == "PARZIALMENTE VERIFICATA"])
+
+            fact_score = 0.0
+            if claims_cnt > 0:
+                fact_score = (verified_cnt * 1.0 + partial_cnt * 0.5) / claims_cnt
+
+            # 2. Graph Corroboration Score
+            # Misura se esistono dati storici indipendenti.
+            # Soglia: 5 nodi per avere il punteggio pieno (1.0)
             graph_nodes_cnt = len(results.get("graph_data", {}).get("nodes", []))
+            graph_score = min(graph_nodes_cnt / 5, 1.0) if graph_nodes_cnt > 0 else 0.0
+
+            # 3. Entity Confidence Score
+            # Misura la sicurezza dell'LLM sull'identificazione del soggetto
+            conf_map = {"high": 1.0, "medium": 0.6, "low": 0.3}
+            entity_conf_str = results.get("entity_analysis", {}).get("confidence", "low").lower()
+            entity_score = conf_map.get(entity_conf_str, 0.2)
+
+            # 4. CALCOLO FINALE (Media Ponderata)
+            # Pesi: Fact-Check (50%), Grafo (30%), Identità (20%)
+            # Questo assicura che lo score non sia mai zero se l'entità è riconosciuta.
+            reliability_score = (fact_score * 0.5) + (graph_score * 0.3) + (entity_score * 0.2)
+
+            # ====================================================================
 
             results["metadata"] = {
                 "entity": entita_focus,
                 "analysis_time_seconds": round(elapsed, 2),
                 "claims_total": claims_cnt,
                 "claims_verified": verified_cnt,
+                "claims_partial": partial_cnt,  # Aggiunto per debug
                 "graph_nodes": graph_nodes_cnt,
+
                 "confidence_entity": results.get("entity_analysis", {}).get("confidence", "N/A"),
-                "confidence_fact_check_score": verified_cnt / claims_cnt if claims_cnt > 0 else 0,
-                "confidence_graph_sources": 0
+
+                # Sostituiamo il vecchio calcolo semplice con il nuovo score composito
+                "confidence_fact_check_score": round(reliability_score, 2),
+
+                # Fix per la metrica dei nodi (era forzata a 0)
+                "confidence_graph_sources": graph_nodes_cnt
             }
 
             self.log_status(f"✅ Analisi completata in {elapsed:.1f}s", "success")

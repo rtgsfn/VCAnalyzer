@@ -34,6 +34,10 @@ class FundingStage(str, Enum):
     SERIES_B = "Series B"
     SERIES_C = "Series C"
     SERIES_D_PLUS = "Series D+"
+    SERIES_E = "Series E"
+    SERIES_F = "Series F"
+    IPO = "IPO"
+    ACQUIRED = "Acquired"
     UNKNOWN = "Unknown"
 
 

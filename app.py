@@ -19,8 +19,8 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 import io
 from fpdf import FPDF # Per il PDF
-import xlsxwriter # Motore per Excel
-# I nostri Script
+
+
 try:
     from analyzer import AgenticKRAG
     from extractor import KnowledgeGraph, DocumentClaims, Claim
@@ -102,6 +102,54 @@ def extract_text_from_file(uploaded_file) -> str:
             os.remove(tmp_file_path)
 
     return text
+
+
+def render_requirements_sidebar(report_text: str, metadata: dict):
+    """
+    Renderizza una sidebar specifica per la Gap Analysis (Matching Requisiti).
+    Calcola statistiche basandosi sulle emoji presenti nel report.
+    """
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 🛠️ Gap Analysis Dashboard")
+
+        # Parsing euristico (conta le occorrenze delle icone nel testo markdown)
+        # Nota: Questo funziona perché l'LLM è istruito a usare queste emoji specifiche
+        n_satisfied = report_text.count("✅")
+        n_partial = report_text.count("⚠️")
+        n_missing = report_text.count("❌")
+
+        total_reqs = n_satisfied + n_partial + n_missing
+
+        if total_reqs > 0:
+            # Calcolo score di copertura (OK = 100%, Partial = 50%, Missing = 0%)
+            score_pct = (n_satisfied + (0.5 * n_partial)) / total_reqs
+
+            st.metric("Copertura Stimata", f"{score_pct:.0%}")
+            st.progress(score_pct)
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("✅ OK", n_satisfied)
+            with col2:
+                st.metric("⚠️ Parz.", n_partial)
+            with col3:
+                st.metric("❌ Gap", n_missing)
+
+        else:
+            st.warning("Nessun requisito tracciato nel report.")
+
+        st.markdown("---")
+        st.markdown("### ⚡ Performance")
+        st.metric("⏱️ Tempo Analisi", f"{metadata.get('analysis_time_seconds', 0):.1f}s")
+
+        st.info("""
+        **Legenda:**
+        ✅ Requisito Soddisfatto
+        ⚠️ Copertura Parziale
+        ❌ Gap Rilevato / Non Trovato
+        """)
+
 
 
 # ============================================================================
@@ -247,30 +295,49 @@ def render_knowledge_graph(nodes_data, edges_data, entity_name):
 
 
 def render_metadata_sidebar(metadata: dict):
-    """Renderizza sidebar con metadata analisi."""
+    """Renderizza sidebar con metadata analisi (Versione Aggiornata Tesi)."""
     with st.sidebar:
         st.markdown("---")
-        st.markdown("### 🌟 Confidence Dashboard")
+        st.markdown("### 🌟 Dashboard Affidabilità")
 
         if "error" in metadata:
             st.error(f"❌ {metadata['error']}")
             return
 
-        conf_entity = metadata.get('confidence_entity', 'low')
-        if conf_entity == 'high':
-            st.metric("🎯 Confidenza Entità", "Alta", "✅")
-        elif conf_entity == 'medium':
-            st.metric("🎯 Confidenza Entità", "Media", "⚠️")
-        else:
-            st.metric("🎯 Confidenza Entità", "Bassa", "❌")
+        # Recuperiamo il nuovo score composito
+        rel_score = metadata.get('confidence_fact_check_score', 0)
 
-        st.progress(metadata.get('confidence_fact_check_score', 0),
-                    text=f"Score Verificabilità: {metadata.get('confidence_fact_check_score', 0):.0%}")
-        st.metric("🕸️ Corroborazione Grafo", f"{metadata.get('confidence_graph_sources', 0)} Nodi Trovati")
+        # Determina colore e label in base al punteggio
+        if rel_score >= 0.7:
+            score_color = "green"
+            score_label = "Alta"
+        elif rel_score >= 0.4:
+            score_color = "orange"
+            score_label = "Media"
+        else:
+            score_color = "red"
+            score_label = "Bassa"
+
+        st.metric("🛡️ Indice Affidabilità (Composite)", f"{rel_score:.0%}", score_label)
+        st.progress(rel_score)
+
+        st.caption(f"""
+        **Composizione Score:**
+        - ✅ Veridicità Fattuale (50%)
+        - 🕸️ Corroborazione Grafo (30%)
+        - 🎯 Confidenza Entità (20%)
+        """)
 
         st.markdown("---")
+
+        # Mostriamo i dettagli grezzi
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Fatti Verificati", metadata.get('claims_verified', 0))
+        with col2:
+            st.metric("Nodi Grafo", metadata.get('graph_nodes', 0))
+
         st.metric("⏱️ Tempo Analisi", f"{metadata.get('analysis_time_seconds', 0):.1f}s")
-        st.metric("📝 Claims Totali", metadata.get('claims_total', 0))
 
 
 # ============================================================================
@@ -279,7 +346,7 @@ def render_metadata_sidebar(metadata: dict):
 
 st.set_page_config(page_title="VC KRAG Analyzer", page_icon="🎯", layout="wide")
 
-st.title("🎯 Agentic VC KRAG Analyzer")
+st.title("SPECTRE - Agentic Intelligence")
 st.markdown("**Knowledge-Retrieval Augmented Generation** per Due Diligence Investigativa")
 st.markdown("---")
 
@@ -689,7 +756,12 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                     )
 
         # --- 8. METADATA & DOWNLOAD (COMUNE) ---
-        render_metadata_sidebar(result.get("metadata", {}))
+        if analysis_mode == "Matching Requisiti Tecnici":
+            # Mostra la dashboard tecnica personalizzata
+            render_requirements_sidebar(result.get("executive_summary", ""), result.get("metadata", {}))
+        else:
+            # Mostra la dashboard standard VC (Confidence, Grafo, Claims)
+            render_metadata_sidebar(result.get("metadata", {}))
 
         st.markdown("---")
         st.markdown("### 📥 Download Report")
