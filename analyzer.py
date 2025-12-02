@@ -1,7 +1,7 @@
 import os
 import json
 from dotenv import load_dotenv
-from typing import List, Callable
+from typing import List, Callable, Any
 import time
 import concurrent.futures
 import logging
@@ -239,15 +239,14 @@ Output: {{"entity_name": "Sequoia Capital", "entity_type": "fund", "confidence":
     # Tool 1: RAG Semantico (OTTIMIZZATO PER VC)
     # ============================================================================
 
-    def get_document_context(self, doc_retriever, entita: str, silent: bool = False) -> str:
-        """Recupera contesto RAG ottimizzato per analisi VC."""
+    def get_document_context(self, doc_retriever, entita: str, silent: bool = False) -> dict:
+        """Recupera contesto RAG e prepara il testo con le citazioni per l'LLM."""
         if not doc_retriever:
-            return "Nessun documento caricato per il RAG."
+            return {"text": "Nessun documento caricato per il RAG.", "source_documents": []}
 
         if not silent:
             self.log_status(f"📚 [Tool 1] Recupero contesto RAG per '{entita}'", "info")
 
-        # Query ottimizzate per VC
         queries = [
             f"Qual è la strategia di business e il vantaggio competitivo di {entita}?",
             f"Chi sono i fondatori e il team chiave di {entita}? Qual è il loro background?",
@@ -255,31 +254,42 @@ Output: {{"entity_name": "Sequoia Capital", "entity_type": "fund", "confidence":
             f"Qual è il mercato target, la dimensione del mercato TAM/SAM/SOM per {entita}?"
         ]
 
+        all_docs_objects = []
         all_contexts = []
+
         for i, query in enumerate(queries, 1):
             try:
                 if not silent:
-                    self.log_status(
-                        f"  → Query {i}/4: Contesto {['strategico', 'team', 'finanziario', 'mercato'][i - 1]}",
-                        "info")
+                    self.log_status(f"  → Query {i}/4...", "info")
+
                 response_docs = doc_retriever.invoke(query)
-                context = "\n".join([doc.page_content for doc in response_docs])
-                if context:
-                    all_contexts.append(
-                        f"### {['Strategia & Competitività', 'Team & Background', 'Metriche & Traction', 'Mercato & TAM'][i - 1]}\n{context}")
+                all_docs_objects.extend(response_docs)
+
+                # --- MODIFICA CRITICA: Iniettiamo il nome del file nel testo ---
+                chunk_texts = []
+                for doc in response_docs:
+                    # Estraiamo il nome pulito del file dai metadati
+                    source_name = os.path.basename(doc.metadata.get("source", "doc_sconosciuto"))
+                    # Formattiamo in modo che l'LLM lo veda chiaramente
+                    chunk_texts.append(f"[[FONTE: {source_name}]]\n{doc.page_content}")
+
+                context_text = "\n\n".join(chunk_texts)
+
+                if context_text:
+                    all_contexts.append(f"### Contesto {i}\n{context_text}")
             except Exception as e:
                 if not silent:
                     self.log_status(f"  ⚠️ Errore query {i}: {e}", "warning")
 
         if not all_contexts:
-            return "Nessun contesto semantico trovato nei documenti."
+            return {"text": "Nessun contesto trovato.", "source_documents": []}
 
-        full_context = "\n\n".join(all_contexts)
+        full_text = "\n\n".join(all_contexts)
 
-        if not silent:
-            self.log_status(f"✅ [Tool 1] Recuperati {len(all_contexts)} blocchi di contesto", "success")
-
-        return full_context
+        return {
+            "text": full_text,
+            "source_documents": all_docs_objects
+        }
 
     # ============================================================================
     # Tool 2: Estrazione Affermazioni (OTTIMIZZATO PER VC)
@@ -707,9 +717,23 @@ Verdetto:""")
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", """Sei un analista esperto nel settore {sector}. 
-            Il tuo compito è estrarre TUTTE le metriche quantitative dal documento e restituirle in formato JSON strutturato.
+            Il tuo compito è estrarre TUTTE le metriche quantitative dal documento e valutare la confidenza del dato.
 
             {format_instructions}
+            
+            **ISTRUZIONI PER IL CAMPO 'metrics_status'**:
+            Per ogni metrica estratta (es. 'arr', 'net_retention_rate'), devi popolare il dizionario 'metrics_status' con:
+            - "VERIFIED": Se il dato è preciso, storico e non ambiguo (es. "Il fatturato 2023 è stato 5M").
+            - "UNVERIFIED": Se il dato è una stima, una proiezione futura ("projected"), approssimativo ("circa", "more than") o ambiguo.
+            - "CONFLICTING": Se ci sono valori diversi nello stesso testo.
+
+            Esempio JSON desiderato:
+            {{
+              "arr": 5.0,
+              "metrics_status": {{
+                  "arr": "VERIFIED"
+              }}
+            }}
 
             **FOCUS SPECIFICO PER {sector_upper}**:
             {sector_hints}
@@ -939,7 +963,11 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
             ("system", f"""{persona} Stai valutando la fattibilità di un investimento.
 
     Analizza la fattibilità su 3 dimensioni: Technical, Market, Financial.
-
+    
+    **OBBLIGO DI CITAZIONE**:
+    Ogni volta che citi un dato tecnico o di mercato presente nei documenti, DEVI indicare la fonte tra parentesi.
+    Il testo contiene tag `[[FONTE: ...]]` -> usali.
+    
     **OUTPUT FORMATO**:
 
     ## ✅ Feasibility Analysis
@@ -1101,8 +1129,19 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
                     future_rag = executor.submit(self.get_document_context, doc_retriever, entita_focus, silent=True)
                     future_claims = executor.submit(self.extract_claims_from_text, document_text, sector=sector,
                                                     silent=True)
-                    contesto_rag = future_rag.result()
+                    rag_result = future_rag.result()
+
+                    # Estrazione sicura dal dizionario
+                    if isinstance(rag_result, dict):
+                        contesto_rag = rag_result["text"]
+                        source_docs = rag_result[
+                            "source_documents"]  # Usa la chiave corretta definita in get_document_context
+                    else:
+                        contesto_rag = rag_result
+                        source_docs = []
+
                     claims_list = future_claims.result()
+                    results["source_documents"] = source_docs
 
                 # FASE 4: Fact-Checking
                 self.log_status("✅ Fact-Checking affermazioni...", "info")

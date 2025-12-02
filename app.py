@@ -65,6 +65,135 @@ MODEL_OPTIONS = {
 # ============================================================================
 # FUNZIONI DI UTILITÀ (ESTRAZIONE TESTO)
 # ============================================================================
+# INSERIRE IN: app.py (all'inizio, dopo gli import)
+
+def inject_custom_css():
+    st.markdown("""
+    <style>
+        /* --- UNCERTAINTY VISUALIZATION --- */
+        /* Badge per confidenza */
+        .metric-card {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+
+        /* Confidenza Alta (Verde) */
+        .conf-high {
+            border-left: 5px solid #2ECC71;
+        }
+
+        /* Confidenza Bassa (Ambra/Dotted) */
+        .conf-low {
+            border-left: 5px solid #F39C12;
+            border: 1px dashed #F39C12; /* Effetto dotted richiesto */
+            background-color: #fffcf5;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2C3E50;
+        }
+
+        .metric-label {
+            font-size: 14px;
+            color: #7F8C8D;
+            text-transform: uppercase;
+        }
+
+        .conf-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            float: right;
+            font-weight: bold;
+        }
+        .badge-high { background-color: #d4edda; color: #155724; }
+        .badge-low { background-color: #fff3cd; color: #856404; }
+
+        /* --- CONTEXT HIGHLIGHTING (SIDE PANEL) --- */
+        .source-chunk {
+            font-size: 12px;
+            background-color: #eef;
+            border-left: 3px solid #4a90e2;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-family: monospace;
+        }
+        .source-header {
+            font-weight: bold;
+            color: #4a90e2;
+            margin-bottom: 4px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+# INSERIRE IN: app.py (nella sezione Funzioni di Visualizzazione)
+
+def render_confidence_metric(label: str, value: str, status: str = "VERIFIED", explanation: str = ""):
+    """
+    Renderizza una metrica con visualizzazione dell'incertezza.
+    Versione FIXATA per evitare il bug del </div> visibile.
+    """
+    # Logica di confidenza
+    # Mappiamo anche i valori italiani o nulli per sicurezza
+    safe_status = str(status).upper() if status else "MISSING"
+
+    if safe_status in ["VERIFIED", "VERIFICATA", "EXCELLENT", "GOOD"]:
+        css_class = "conf-high"
+        badge_class = "badge-high"
+        badge_text = "HIGH CONFIDENCE"
+        icon = "✅"
+    else:
+        # UNVERIFIED, MISSING, POOR, CONFLICTING -> Low Confidence
+        css_class = "conf-low"
+        badge_class = "badge-low"
+        badge_text = "NEEDS VERIFICATION"
+        icon = "⚠️"
+
+    # HTML compatto senza indentazione per evitare errori di rendering
+    html_code = f"""
+<div class="metric-card {css_class}">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+        <span class="metric-label">{label}</span>
+        <span class="conf-badge {badge_class}">{icon} {badge_text}</span>
+    </div>
+    <div class="metric-value">{value}</div>
+    <div style="font-size: 11px; color: #666; margin-top: 5px; min-height: 15px;">{explanation}</div>
+</div>
+"""
+    st.markdown(html_code, unsafe_allow_html=True)
+
+def render_source_inspector(source_docs: list):
+    """Renderizza i chunk RAG originali nella sidebar (Ground Truth)."""
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 🔍 Context Inspector")
+        st.caption("Verifica qui i frammenti originali usati dall'AI.")
+
+        if not source_docs:
+            st.info("Nessun contesto specifico recuperato.")
+            return
+
+        for i, doc in enumerate(source_docs):
+            # Estrae il nome file dai metadati o usa un default
+            source_name = doc.metadata.get("source", "Documento sconosciuto")
+            page_num = doc.metadata.get("page", "?")
+
+            with st.expander(f"📄 Fonte {i + 1}: {os.path.basename(source_name)} (p.{page_num})"):
+                # Evidenziazione visiva del chunk
+                st.markdown(f"""
+                <div class="source-chunk">
+                    <div class="source-header">{source_name}</div>
+                    {doc.page_content}
+                </div>
+                """, unsafe_allow_html=True)
+
+
 
 def extract_text_from_file(uploaded_file) -> str:
     """Estrae testo da PDF, DOCX, PPTX, TXT. Usato per i Requisiti."""
@@ -567,11 +696,44 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                             m = metrics.saas_metrics
                             if m:
                                 c1, c2, c3 = st.columns(3)
-                                c1.metric("ARR", f"${m.arr}M" if m.arr else "-")
-                                c1.metric("Growth YoY", f"{m.revenue_growth_rate}%" if m.revenue_growth_rate else "-")
-                                c2.metric("LTV/CAC", f"{m.ltv_cac_ratio}x" if m.ltv_cac_ratio else "-")
-                                c2.metric("Net Retention", f"{m.net_retention_rate}%" if m.net_retention_rate else "-")
-                                c3.metric("Runway", f"{m.runway_months} mo" if m.runway_months else "-")
+                                #c1.metric("ARR", f"${m.arr}M" if m.arr else "-")
+                                #c1.metric("Growth YoY", f"{m.revenue_growth_rate}%" if m.revenue_growth_rate else "-")
+                                #c2.metric("LTV/CAC", f"{m.ltv_cac_ratio}x" if m.ltv_cac_ratio else "-")
+                                #c2.metric("Net Retention", f"{m.net_retention_rate}%" if m.net_retention_rate else "-")
+                                #c3.metric("Runway", f"{m.runway_months} mo" if m.runway_months else "-")
+                                with c1:
+                                    status_arr = "MISSING"
+                                    if m.arr:
+                                        status_arr = m.metrics_status.get("arr", "UNVERIFIED")
+                                    render_confidence_metric("ARR", f"${m.arr}M" if m.arr else "-", status_arr)
+
+                                    status_growth = "MISSING"
+                                    if m.revenue_growth_rate:
+                                        status_growth = m.metrics_status.get("Growth YoY", "UNVERIFIED")
+                                    render_confidence_metric("Growth YoY",
+                                                             f"{m.revenue_growth_rate}%" if m.revenue_growth_rate else "-",
+                                                             status_growth)
+                                with c2:
+                                    status_ltv = "MISSING"
+                                    if m.ltv_cac_ratio:
+                                        status_ltv = m.metrics_status.get("LTV/CAC", "UNVERIFIED")
+                                    render_confidence_metric("LTV/CAC",
+                                                             f"{m.ltv_cac_ratio}" if m.ltv_cac_ratio else "-",
+                                                             status_ltv)
+
+                                    status_retention = "MISSING"
+                                    if m.net_retention_rate:
+                                        status_retention = m.metrics_status.get("Net Retention", "UNVERIFIED")
+                                    render_confidence_metric("Net Retention",
+                                                             f"{m.net_retention_rate}" if m.net_retention_rate else "-",
+                                                             status_retention)
+                                with c3:
+                                    status_runway = "MISSING"
+                                    if m.runway_months:
+                                        status_runway = m.metrics_status.get("Runway", "UNVERIFIED")
+                                    render_confidence_metric("Runway",
+                                                             f"{m.runway_months} Months" if m.runway_months else "-",
+                                                             status_runway)
                             else:
                                 st.info("Nessuna metrica SaaS estratta.")
 
@@ -579,8 +741,21 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                             m = metrics.traction_metrics
                             if m:
                                 c1, c2 = st.columns(2)
-                                c1.metric("Utenti Totali", f"{m.total_users:,}" if m.total_users else "-")
-                                c2.metric("NPS Score", m.nps_score if m.nps_score else "-")
+                                #c1.metric("Utenti Totali", f"{m.total_users:,}" if m.total_users else "-")
+                                #c2.metric("NPS Score", m.nps_score if m.nps_score else "-")
+                                with c1:
+                                    status_usr = "MISSING"
+                                    if m.total_users:
+                                        status_usr = m.metrics_status.get("Utenti Totali", "UNVERIFIED")
+                                    render_confidence_metric("Utenti Totali", f"${m.total_users}M" if m.total_users else "-", status_usr)
+
+                                with c2:
+                                    status_nps = "MISSING"
+                                    if m.nps_score:
+                                        status_nps = m.metrics_status.get("NPS Score", "UNVERIFIED")
+                                    render_confidence_metric("NPS Score",
+                                                             f"{m.nps_score}" if m.nps_score else "-",
+                                                             status_nps)
                             else:
                                 st.info("Nessuna metrica Traction estratta.")
 
@@ -588,9 +763,29 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                             m = metrics.market_metrics
                             if m:
                                 c1, c2, c3 = st.columns(3)
-                                c1.metric("TAM", f"${m.tam}B" if m.tam else "-")
-                                c2.metric("SAM", f"${m.sam}B" if m.sam else "-")
-                                c3.metric("SOM", f"${m.som}M" if m.som else "-")
+                                #c1.metric("TAM", f"${m.tam}B" if m.tam else "-")
+                                #c2.metric("SAM", f"${m.sam}B" if m.sam else "-")
+                                #c3.metric("SOM", f"${m.som}M" if m.som else "-")
+                                with c1:
+                                    status_tam = "MISSING"
+                                    if m.tam:
+                                        status_tam = m.metrics_status.get("TAM", "UNVERIFIED")
+                                    render_confidence_metric("TAM", f"${m.tam}M" if m.tam else "-", status_tam)
+
+                                with c2:
+                                    status_sam = "MISSING"
+                                    if m.sam:
+                                        status_sam = m.metrics_status.get("SAM", "UNVERIFIED")
+                                    render_confidence_metric("SAM",
+                                                             f"{m.sam}" if m.sam else "-",
+                                                             status_sam)
+                                with c3:
+                                    status_som = "MISSING"
+                                    if m.som:
+                                        status_som = m.metrics_status.get("SOM", "UNVERIFIED")
+                                    render_confidence_metric("SOM",
+                                                             f"{m.som}" if m.som else "-",
+                                                             status_som)
                             else:
                                 st.info("Nessuna metrica Market estratta.")
 
@@ -613,35 +808,58 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                                 else:
                                     st.info("Nessuna info team estratta.")
 
+
                     elif isinstance(metrics, REMetricsProfile):
-                        # --- REAL ESTATE PROFILO ---
                         tab_names = ["🏠 Finanziarie RE", "🌍 Mercato (VC)", "👥 Team"]
+
                         tab_re, tab_market, tab_team = st.tabs(tab_names)
 
                         with tab_re:
+
                             m = metrics.re_metrics
+
                             if m:
-                                st.metric("Capitalization Rate (Cap Rate)", f"{m.cap_rate}%" if m.cap_rate else "-")
-                                st.metric("Internal Rate of Return (IRR)", f"{m.irr}%" if m.irr else "-")
-                                st.metric("Occupancy Rate", f"{m.occupancy_rate}%" if m.occupancy_rate else "-")
-                                st.metric("Net Operating Income (NOI)",
-                                          f"${m.net_operating_income}M" if m.net_operating_income else "-")
+
+                                # Recuperiamo lo status in modo sicuro (fallback a dizionario vuoto se manca il campo nel modello)
+
+                                statuses = getattr(m, "metrics_status", {})
+
+                                c1, c2 = st.columns(2)
+
+                                with c1:
+
+                                    render_confidence_metric("Cap Rate",
+
+                                                             f"{m.cap_rate}%" if m.cap_rate else "-",
+
+                                                             statuses.get("cap_rate",
+                                                                          "UNVERIFIED") if m.cap_rate else "MISSING")
+
+                                    render_confidence_metric("Occupancy Rate",
+
+                                                             f"{m.occupancy_rate}%" if m.occupancy_rate else "-",
+
+                                                             statuses.get("occupancy_rate",
+                                                                          "UNVERIFIED") if m.occupancy_rate else "MISSING")
+
+                                with c2:
+
+                                    render_confidence_metric("IRR",
+
+                                                             f"{m.irr}%" if m.irr else "-",
+
+                                                             statuses.get("irr", "UNVERIFIED") if m.irr else "MISSING")
+
+                                    render_confidence_metric("NOI",
+
+                                                             f"${m.net_operating_income}M" if m.net_operating_income else "-",
+
+                                                             statuses.get("net_operating_income",
+                                                                          "UNVERIFIED") if m.net_operating_income else "MISSING")
+
                             else:
+
                                 st.info("Nessuna metrica Real Estate estratta.")
-
-                        # (Continuazione del rendering dinamico per gli altri settori)
-
-                        # Rendering del team nel tab Team
-                        team_metrics = getattr(metrics, 'team_metrics', None)
-                        if team_metrics:
-                            with tab_team:
-                                if team_metrics.founders:
-                                    for founder in team_metrics.founders:
-                                        st.markdown(f"**{founder.name}** - {founder.role}")
-                                        if founder.background: st.caption(f"📝 {founder.background}")
-                                        st.markdown("---")
-                                else:
-                                    st.info("Nessuna info team estratta.")
 
                     elif isinstance(metrics, PharmaMetricsProfile):
                         # --- PHARMA & BIOTECH PROFILO ---
@@ -651,19 +869,40 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                         with tab_rd:
                             m = metrics.rd_metrics
                             if m:
-                                # Prima riga di metriche
+                                statuses = getattr(m, "metrics_status", {})
+
+                                # Prima riga
                                 c1, c2, c3 = st.columns(3)
-                                c1.metric("Fase Clinica", m.clinical_trial_phase if m.clinical_trial_phase else "-")
-                                c2.metric("FDA Status", m.fda_approval_status if m.fda_approval_status else "-")
-                                c3.metric("Time to Market",
-                                          f"{m.time_to_market_years} anni" if m.time_to_market_years else "-")
+                                with c1:
+                                    render_confidence_metric("Fase Clinica",
+                                                             m.clinical_trial_phase if m.clinical_trial_phase else "-",
+                                                             statuses.get("clinical_trial_phase",
+                                                                          "UNVERIFIED") if m.clinical_trial_phase else "MISSING")
+                                with c2:
+                                    render_confidence_metric("FDA Status",
+                                                             m.fda_approval_status if m.fda_approval_status else "-",
+                                                             statuses.get("fda_approval_status",
+                                                                          "UNVERIFIED") if m.fda_approval_status else "MISSING")
+                                with c3:
+                                    render_confidence_metric("Time to Market",
+                                                             f"{m.time_to_market_years} anni" if m.time_to_market_years else "-",
+                                                             statuses.get("time_to_market_years",
+                                                                          "UNVERIFIED") if m.time_to_market_years else "MISSING")
 
                                 st.markdown("---")
 
                                 # Seconda riga
                                 c4, c5 = st.columns(2)
-                                c4.metric("Scadenza Brevetto", m.patent_expiry_date if m.patent_expiry_date else "-")
-                                c5.metric("R&D Burn Rate", f"${m.rd_burn_rate_m}M/mo" if m.rd_burn_rate_m else "-")
+                                with c4:
+                                    render_confidence_metric("Scadenza Brevetto",
+                                                             m.patent_expiry_date if m.patent_expiry_date else "-",
+                                                             statuses.get("patent_expiry_date",
+                                                                          "UNVERIFIED") if m.patent_expiry_date else "MISSING")
+                                with c5:
+                                    render_confidence_metric("R&D Burn Rate",
+                                                             f"${m.rd_burn_rate_m}M/mo" if m.rd_burn_rate_m else "-",
+                                                             statuses.get("rd_burn_rate_m",
+                                                                          "UNVERIFIED") if m.rd_burn_rate_m else "MISSING")
 
                                 if m.efficacy_data:
                                     st.info(f"📊 **Dati Efficacia**: {m.efficacy_data}")
@@ -690,30 +929,47 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
                             else:
                                 st.info("Nessuna info fundraising estratta.")
 
+
                     elif isinstance(metrics, LegalMetricsProfile):
+
                         # --- LEGAL / M&A PROFILO ---
+
                         tab_names = ["⚖️ Risk & Compliance", "👥 Team"]
+
                         tab_legal, tab_team = st.tabs(tab_names)
 
                         with tab_legal:
+
                             m = metrics.legal_metrics
+
                             if m:
+
                                 c1, c2 = st.columns(2)
 
                                 # Helper per visualizzazione booleani
+
                                 gdpr_val = "✅ Compliant" if m.gdpr_compliance else (
+
                                     "⚠️ Non specificato" if m.gdpr_compliance is None else "❌ Non Compliant")
+
                                 coc_val = "✅ Presente" if m.change_of_control_clause else "❌ Assente"
 
                                 c1.metric("GDPR / Privacy", gdpr_val)
+
                                 c1.metric("Contenziosi Pendenti",
+
                                           m.pending_litigation_count if m.pending_litigation_count is not None else "0")
+
                                 c1.metric("Status IP", m.ip_status if m.ip_status else "-")
 
                                 c2.metric("Certificazioni (ISO/SOC)",
+
                                           str(m.iso_soc_certified) if m.iso_soc_certified else "-")
+
                                 c2.metric("Clausola Change of Control", coc_val)
+
                             else:
+
                                 st.info("Nessuna metrica legale estratta.")
 
                         # Rendering Team (Logica riutilizzata)
@@ -865,6 +1121,14 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
             except Exception as e:
                 st.error(f"Errore PDF: {e}")
 
+        # --- 9. CONTEXT INSPECTOR (SIDEBAR) ---
+        # Questa è la parte che mancava: attiva il pannello laterale con le fonti
+        if "source_documents" in result:
+            # Verifica di sicurezza se la funzione è stata incollata
+            if 'render_source_inspector' in globals():
+                render_source_inspector(result["source_documents"])
+            else:
+                st.sidebar.warning("⚠️ Funzione 'render_source_inspector' non trovata.")
         status_container.success(f"✅ Analisi completata in {elapsed:.1f} secondi!")
 
     except Exception as e:

@@ -33,6 +33,7 @@ class FundingStage(str, Enum):
     SERIES_A = "Series A"
     SERIES_B = "Series B"
     SERIES_C = "Series C"
+    SERIES_D = "Series D"
     SERIES_D_PLUS = "Series D+"
     SERIES_E = "Series E"
     SERIES_F = "Series F"
@@ -43,10 +44,10 @@ class FundingStage(str, Enum):
 
 class MetricStatus(str, Enum):
     """Status di verifica di una metrica."""
-    VERIFIED = "Verificata"
-    UNVERIFIED = "Non Verificata"
-    CONFLICTING = "Conflittuale"
-    MISSING = "Mancante"
+    VERIFIED = "VERIFIED"
+    UNVERIFIED = "UNVERIFIED"
+    CONFLICTING = "CONFLICTING"
+    MISSING = "MISSING"
 
 
 # ============================================================================
@@ -79,7 +80,7 @@ class SaaSMetrics(BaseModel):
     rule_of_40: Optional[float] = Field(None, description="Growth Rate + EBITDA Margin")
 
     # Status per ogni metrica
-    metrics_status: Optional[Dict[str, MetricStatus]] = Field(default_factory=dict)
+    metrics_status: Optional[Dict[str, Optional[MetricStatus]]] = Field(default_factory=dict)
 
 
 # ============================================================================
@@ -106,7 +107,7 @@ class TractionMetrics(BaseModel):
     enterprise_customers: Optional[int] = Field(None, description="Numero clienti Enterprise (>100K ARR)")
     average_contract_value: Optional[float] = Field(None, description="ACV - Average Contract Value ($K)")
 
-    metrics_status: Optional[Dict[str, MetricStatus]] = Field(default_factory=dict)
+    metrics_status: Optional[Dict[str, Optional[MetricStatus]]] = Field(default_factory=dict)
 
 # ============================================================================
 # METRICHE DI MERCATO
@@ -124,7 +125,7 @@ class MarketMetrics(BaseModel):
 
     competitive_position: Optional[str] = Field(None, description="Posizione competitiva (Leader/Challenger/Niche)")
 
-    metrics_status: Optional[Dict[str, MetricStatus]] = Field(default_factory=dict)
+    metrics_status: Optional[Dict[str, Optional[MetricStatus]]] = Field(default_factory=dict)
 
 # ============================================================================
 # METRICHE DI TEAM
@@ -363,6 +364,8 @@ class PharmaRDMentrics(BaseModel):
     efficacy_data: Optional[str] = Field(None, description="Dati chiave di efficacia (es. ORR %, PFS months).")
     rd_burn_rate_m: Optional[float] = Field(None, description="Burn rate mensile per R&D in $M.")
 
+    metrics_status: Optional[Dict[str, Optional[MetricStatus]]] = Field(default_factory=dict)
+
 class PharmaMetricsProfile(BaseModel):
     """Profilo di metriche per Pharma/Biotech."""
     entity_name: str
@@ -377,6 +380,8 @@ class REFinancialMetrics(BaseModel):
     irr: Optional[float] = Field(None, description="Internal Rate of Return (IRR) (%).")
     occupancy_rate: Optional[float] = Field(None, description="Tasso di occupazione attuale (%).")
     net_operating_income: Optional[float] = Field(None, description="Reddito Operativo Netto (NOI) in $M.")
+
+    metrics_status: Optional[Dict[str, Optional[MetricStatus]]] = Field(default_factory=dict)
 
 class REMetricsProfile(BaseModel):
     """Profilo di metriche per Real Estate."""
@@ -394,11 +399,13 @@ class LegalRiskMetrics(BaseModel):
     ip_status: Optional[str] = Field(None, description="Stato della Proprietà Intellettuale (Brevettato, In attesa, Nessuno).")
     change_of_control_clause: Optional[bool] = Field(None, description="Presenza di clausole di Change of Control in contratti chiave.")
 
+    metrics_status: Optional[Dict[str, Optional[MetricStatus]]] = Field(default_factory=dict)
+
 class LegalMetricsProfile(BaseModel):
     """Profilo di metriche per Legal/M&A Due Diligence."""
     entity_name: str
     legal_metrics: Optional[LegalRiskMetrics] = None
-    team_metrics: Optional[TeamMetrics] = None # Riutilizzo
+    team_metrics: Optional[TeamMetrics] = None
 
 # Unione per Type Hinting dinamico
 SectorMetricsProfile = VCMetricsProfile | REMetricsProfile | PharmaMetricsProfile | LegalMetricsProfile
