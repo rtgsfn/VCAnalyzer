@@ -39,3 +39,15 @@ class Claim(BaseModel):
 class DocumentClaims(BaseModel):
     """Un contenitore per tutte le affermazioni fattuali estratte da un documento."""
     claims: List[Claim]
+
+class Competitor(BaseModel):
+    """Dettagli su un competitor identificato."""
+    name: str = Field(description="Nome dell'azienda competitor")
+    description: Optional[str] = Field(description="Cosa fa (1-2 frasi)")
+    differentiation: Optional[str] = Field(None, description="Perché è diverso dalla nostra entità (Pro/Contro o Moat)")
+    website: Optional[str] = Field(None, description="Sito web o URL di riferimento")
+
+class CompetitorAnalysis(BaseModel):
+    """Contenitore per l'analisi competitiva universale."""
+    competitors: List[Competitor] = Field(description="Lista dei top 5 competitor")
+    market_position: Optional[str] = Field(description="Sintesi del posizionamento dell'entità rispetto ai competitor nel suo settore specifico")

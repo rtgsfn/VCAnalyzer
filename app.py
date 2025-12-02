@@ -23,7 +23,7 @@ from fpdf import FPDF # Per il PDF
 
 try:
     from analyzer import AgenticKRAG
-    from extractor import KnowledgeGraph, DocumentClaims, Claim
+    from extractor import KnowledgeGraph, DocumentClaims, Claim, CompetitorAnalysis
     from graph import GraphTool
     from scraper import scrape_article_text
     from vc_metrics import VCMetricsProfile, PharmaMetricsProfile, REMetricsProfile, LegalMetricsProfile # Import per la tipizzazione corretta
@@ -65,7 +65,13 @@ MODEL_OPTIONS = {
 # ============================================================================
 # FUNZIONI DI UTILITÀ (ESTRAZIONE TESTO)
 # ============================================================================
-# INSERIRE IN: app.py (all'inizio, dopo gli import)
+def sanitize_url(url: str) -> str:
+    """Assicura che l'URL abbia il protocollo per evitare reload della pagina."""
+    if not url:
+        return ""
+    if not url.startswith(("http://", "https://")):
+        return f"https://{url}"
+    return url
 
 def inject_custom_css():
     st.markdown("""
@@ -127,7 +133,29 @@ def inject_custom_css():
     </style>
     """, unsafe_allow_html=True)
 
-# INSERIRE IN: app.py (nella sezione Funzioni di Visualizzazione)
+def render_competitor_tab(comp_analysis: CompetitorAnalysis):
+    """Renderizza il tab dei competitor."""
+    if not comp_analysis or not comp_analysis.competitors:
+        st.info("ℹ️ Nessun dato sui competitor disponibile per questa analisi.")
+        return
+
+    st.markdown("### ⚔️ Competitive Landscape")
+    st.info(f"**📍 Market Position:** {comp_analysis.market_position}")
+
+    for comp in comp_analysis.competitors:
+        with st.expander(f"🏢 {comp.name}", expanded=True):
+            cols = st.columns([3, 1])
+            with cols[0]:
+                st.markdown(f"**Cosa fanno:** {comp.description}")
+                if comp.differentiation:
+                    st.markdown(f"👉 **Confronto:** *{comp.differentiation}*")
+            with cols[1]:
+                if comp.website:
+                    # FIX: Sanitizziamo l'URL
+                    clean_url = sanitize_url(comp.website)
+                    st.link_button("🌐 Visita Sito", clean_url)
+                else:
+                    st.caption("No URL")
 
 def render_confidence_metric(label: str, value: str, status: str = "VERIFIED", explanation: str = ""):
     """
@@ -188,8 +216,6 @@ def render_source_inspector(source_docs: list):
                 </div>
                 """, unsafe_allow_html=True)
 
-
-
 def extract_text_from_file(uploaded_file) -> str:
     """Estrae testo da PDF, DOCX, PPTX, TXT. Usato per i Requisiti."""
     text = ""
@@ -226,7 +252,6 @@ def extract_text_from_file(uploaded_file) -> str:
             os.remove(tmp_file_path)
 
     return text
-
 
 def render_requirements_sidebar(report_text: str, metadata: dict):
     """
@@ -273,8 +298,6 @@ def render_requirements_sidebar(report_text: str, metadata: dict):
         ⚠️ Copertura Parziale
         ❌ Gap Rilevato / Non Trovato
         """)
-
-
 
 # ============================================================================
 # FUNZIONI DI CACHE
@@ -343,10 +366,6 @@ def process_documents(files_or_text, _embeddings, _splitter) -> Tuple[object, st
     return vectordb.as_retriever(search_kwargs={"k": 5}), full_text
 
 
-# ============================================================================
-# FUNZIONI VISUALIZZAZIONE
-# ============================================================================
-
 def make_status_callback(container):
     """Wrapper per adattare (message, level) alle chiamate Streamlit."""
 
@@ -364,32 +383,68 @@ def make_status_callback(container):
 
 
 def render_fact_checking_table(claims_data: List[dict]):
-    """Renderizza tabella fact-checking con styling."""
+    """Renderizza tabella fact-checking con LINK CLICCABILI."""
     if not claims_data:
         st.info("ℹ️ Nessuna affermazione fattuale estratta")
         return
 
+    # Creazione DataFrame
     df = pd.DataFrame(claims_data)
+
+    # Mappatura icone status
     status_icons = {
         "VERIFICATA": "✅",
         "FALSA": "❌",
         "PARZIALMENTE VERIFICATA": "⚠️",
         "NON VERIFICABILE": "❓"
     }
+
+    # 1. Colonna Status abbellita
     df["Status"] = df["status"].apply(lambda x: f"{status_icons.get(x, '?')} {x}")
-    df_display = df[["soggetto", "affermazione", "Status", "prove"]].copy()
-    df_display.columns = ["Soggetto", "Affermazione", "Verdetto", "Prove (Estratto)"]
-    df_display["Prove (Estratto)"] = df_display["Prove (Estratto)"].apply(
-        lambda x: x[:150] + "..." if len(x) > 150 else x)
 
-    # Statistiche
+    # 2. Gestione URL: Sanitizziamo e gestiamo i vuoti
+    # Assicuriamoci che la chiave 'source_url' esista (per retrocompatibilità)
+    if "source_url" not in df.columns:
+        df["source_url"] = None
+
+    df["url_clean"] = df["source_url"].apply(sanitize_url)
+
+    # 3. Preparazione DataFrame per la visualizzazione
+    # Selezioniamo le colonne da mostrare. 'url_clean' è quella che diventerà il link.
+    df_display = df[["soggetto", "affermazione", "Status", "prove", "url_clean"]].copy()
+    df_display.columns = ["Soggetto", "Affermazione", "Verdetto", "Prove", "Fonte"]
+
+    # Statistiche (Contatori sopra la tabella)
     col1, col2, col3, col4 = st.columns(4)
-    with col1: st.metric("✅ Verificate", len([c for c in claims_data if c["status"] == "VERIFICATA"]))
-    with col2: st.metric("❌ False", len([c for c in claims_data if c["status"] == "FALSA"]))
-    with col3: st.metric("⚠️ Parziali", len([c for c in claims_data if c["status"] == "PARZIALMENTE VERIFICATA"]))
-    with col4: st.metric("❓ Non Verif.", len([c for c in claims_data if c["status"] == "NON VERIFICABILE"]))
+    with col1:
+        st.metric("✅ Verificate", len([c for c in claims_data if c["status"] == "VERIFICATA"]))
+    with col2:
+        st.metric("❌ False", len([c for c in claims_data if c["status"] == "FALSA"]))
+    with col3:
+        st.metric("⚠️ Parziali", len([c for c in claims_data if c["status"] == "PARZIALMENTE VERIFICATA"]))
+    with col4:
+        st.metric("❓ Non Verif.", len([c for c in claims_data if c["status"] == "NON VERIFICABILE"]))
 
-    st.dataframe(df_display, width='stretch', hide_index=True)
+    # 4. Render Tabella con Configurazione Link
+    st.dataframe(
+        df_display,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Soggetto": st.column_config.TextColumn("Soggetto", width="small"),
+            "Affermazione": st.column_config.TextColumn("Claim", width="medium"),
+            "Verdetto": st.column_config.TextColumn("Esito", width="small"),
+            "Prove": st.column_config.TextColumn("Evidenza trovata", width="large"),
+
+            # CONFIGURAZIONE CHIAVE PER I LINK
+            "Fonte": st.column_config.LinkColumn(
+                "Fonte Web",
+                display_text="🔗 Apri Fonte",  # Questo è il testo che appare cliccabile
+                help="Clicca per visitare la pagina originale usata per la verifica",
+                width="small"
+            )
+        }
+    )
 
 
 def render_knowledge_graph(nodes_data, edges_data, entity_name):
@@ -913,13 +968,23 @@ if "analysis_results" in st.session_state:
 
         # --- Report Testuali ---
         with results_placeholder.container():
-            tab_summary, tab_risk, tab_feasibility, tab_facts = st.tabs([
-                "📋 Executive Summary", "🚩 Risk Analysis", "✅ Feasibility", "🔍 Fact-Check"
+            tab_summary, tab_risk, tab_feasibility, tab_competitors, tab_facts = st.tabs([
+                "📋 Executive Summary", "🚩 Risk Analysis", "✅ Feasibility", "⚔️ Competitors", "🔍 Fact-Check"
             ])
             with tab_summary: st.markdown(result.get("executive_summary", ""))
             with tab_risk: st.markdown(result.get("risk_analysis", ""))
             with tab_feasibility: st.markdown(result.get("feasibility_analysis", ""))
             with tab_facts: render_fact_checking_table(result.get("fact_checking_table", []))
+            with tab_competitors:
+                comp_data = result.get("competitor_analysis")
+                # Gestione robusta: riconverti da dict a oggetto se necessario (es. dopo ricaricamento sessione)
+                if isinstance(comp_data, dict):
+                    try:
+                        comp_data = CompetitorAnalysis(**comp_data)
+                    except Exception:
+                        pass
+
+                render_competitor_tab(comp_data)
 
             st.markdown("---")
             st.markdown(result.get("metrics_analysis", ""))
@@ -945,28 +1010,52 @@ if "analysis_results" in st.session_state:
     st.markdown("---")
     st.markdown("### 📥 Download Report")
 
-    # 1. Preparazione Dati
+    comp_analysis = result.get('competitor_analysis')
+    comp_text_section = "N/A"
+
+    if comp_analysis:
+        # Gestione dict/object
+        if isinstance(comp_analysis, dict):
+            c_obj = comp_analysis
+        else:
+            c_obj = comp_analysis.model_dump()
+
+        if c_obj:
+            comp_text_section = f"POSITIONING: {c_obj.get('market_position', 'N/A')}\n\n"
+            for c in c_obj.get('competitors', []):
+                # FIX: Aggiungiamo l'URL nel testo del report
+                url_str = f" [Link: {c.get('website')}]" if c.get('website') else ""
+
+                comp_text_section += f"- {c['name'].upper()}{url_str}\n"
+                comp_text_section += f"  Desc: {c['description']}\n"
+                comp_text_section += f"  Diff: {c.get('differentiation', '')}\n\n"
+
+    # Aggiorna la stringa del report completo
     full_report_text = f"""REPORT DI ANALISI: {entity_to_analyze}
-    --------------------------------------------------
-    Mode: {analysis_mode}
-    Data: {time.strftime("%Y-%m-%d %H:%M:%S")}
+        --------------------------------------------------
+        Settore: {sector}
+        Data: {time.strftime("%Y-%m-%d %H:%M:%S")}
 
-    1. EXECUTIVE SUMMARY
-    --------------------
-    {result.get('executive_summary', 'N/A')}
+        1. EXECUTIVE SUMMARY
+        --------------------
+        {result.get('executive_summary', 'N/A')}
 
-    2. RISK ANALYSIS
-    ----------------
-    {result.get('risk_analysis', 'N/A')}
+        2. COMPETITIVE LANDSCAPE
+        ------------------------
+        {comp_text_section}
 
-    3. FEASIBILITY ANALYSIS
-    -----------------------
-    {result.get('feasibility_analysis', 'N/A')}
+        3. RISK ANALYSIS
+        ----------------
+        {result.get('risk_analysis', 'N/A')}
 
-    4. METRICS ANALYSIS
-    -------------------
-    {result.get('metrics_analysis', 'N/A')}
-    """
+        4. FEASIBILITY ANALYSIS
+        -----------------------
+        {result.get('feasibility_analysis', 'N/A')}
+
+        5. METRICS ANALYSIS
+        -------------------
+        {result.get('metrics_analysis', 'N/A')}
+        """
 
     # Preparazione DataFrame Fact-Checking per CSV/Excel
     df_facts = pd.DataFrame(result.get("fact_checking_table", []))
@@ -1015,34 +1104,147 @@ if "analysis_results" in st.session_state:
             mime="application/vnd.ms-excel"
         )
 
-    # --- D. DOWNLOAD PDF ---
+    # --- D. DOWNLOAD PDF (Con sezione FONTI dedicata) ---
     with col_d4:
         class PDF(FPDF):
             def header(self):
-                self.set_font('Arial', 'B', 15)
+                self.set_font('Arial', 'B', 16)
                 self.cell(0, 10, f'VC Report: {entity_to_analyze}', 0, 1, 'C')
-                self.ln(10)
+                self.set_font('Arial', 'I', 10)
+                self.cell(0, 10, f'Generated by Spectre AI - {time.strftime("%Y-%m-%d")}', 0, 1, 'C')
+                self.ln(5)
+
+            def footer(self):
+                self.set_y(-15)
+                self.set_font('Arial', 'I', 8)
+                self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+
+            def chapter_title(self, label):
+                self.set_font('Arial', 'B', 14)
+                self.set_fill_color(240, 240, 240)
+                self.cell(0, 10, label, 0, 1, 'L', 1)
+                self.ln(2)
+
+            def replace_emojis(self, text):
+                replacements = {
+                    "✅": "[OK]", "❌": "[NO]", "⚠️": "[!]", "❓": "[?]",
+                    "🚩": "[RISK]", "📋": "[SUMMARY]", "⚔️": "[VS]",
+                    "🏢": "[AZIENDA]", "📊": "[METRICS]", "🔍": "[CHECK]",
+                    "💰": "[FINANCE]", "🔧": "[TECH]", "🎯": "[TARGET]",
+                    "👉": "->", "⭐": "*"
+                }
+                for emoji_char, replacement in replacements.items():
+                    text = text.replace(emoji_char, replacement)
+                return text
+
+            def chapter_body(self, body):
+                self.set_font('Arial', '', 11)
+                clean_body = self.replace_emojis(body)
+                clean_body = clean_body.replace('**', '').replace('## ', '').replace('### ', '')
+                safe_body = clean_body.encode('latin-1', 'replace').decode('latin-1')
+                self.multi_cell(0, 6, safe_body)
+                self.ln(5)
+
+            def add_link_line(self, label, url):
+                """Aggiunge una riga con un link cliccabile."""
+                self.set_font('Arial', '', 10)
+                # Testo etichetta
+                safe_label = label.encode('latin-1', 'replace').decode('latin-1')
+                self.write(6, f"- {safe_label}: ")
+
+                # Link blu e sottolineato
+                self.set_text_color(0, 0, 255)
+                self.set_font('Arial', 'U', 10)
+                safe_url = url.encode('latin-1', 'replace').decode('latin-1')
+                self.write(6, safe_url, link=url)
+
+                # Reset stile
+                self.set_text_color(0, 0, 0)
+                self.set_font('Arial', '', 10)
+                self.ln(6)
 
 
         try:
             pdf = PDF()
+            pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
-            pdf.set_font("Arial", size=12)
 
-            # Sanificazione testo per FPDF (rimuove caratteri non-latin-1 che causano crash)
-            safe_text = full_report_text.encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 10, safe_text)
+            # --- CAPITOLI STANDARD (1-5) ---
+            pdf.chapter_title("1. EXECUTIVE SUMMARY")
+            pdf.chapter_body(result.get('executive_summary', 'Nessun dato.'))
 
+            pdf.chapter_title("2. COMPETITIVE LANDSCAPE")
+            # Logica testo competitor (semplificata per il body)
+            comp_analysis = result.get('competitor_analysis')
+            comp_text_pdf = "Nessun dato.\n"
+            if comp_analysis:
+                if isinstance(comp_analysis, dict):
+                    c_obj = comp_analysis
+                else:
+                    c_obj = comp_analysis.model_dump()
+                if c_obj:
+                    comp_text_pdf = f"POSIZIONAMENTO: {c_obj.get('market_position', 'N/A')}\n\n"
+                    for i, c in enumerate(c_obj.get('competitors', []), 1):
+                        comp_text_pdf += f"{i}. {c['name'].upper()}\n   {c['description']}\n\n"
+            pdf.chapter_body(comp_text_pdf)
+
+            pdf.chapter_title("3. RISK ANALYSIS")
+            pdf.chapter_body(result.get('risk_analysis', 'Nessun dato.'))
+
+            pdf.chapter_title("4. FEASIBILITY ANALYSIS")
+            pdf.chapter_body(result.get('feasibility_analysis', 'Nessun dato.'))
+
+            pdf.chapter_title("5. METRICS ANALYSIS")
+            pdf.chapter_body(result.get('metrics_analysis', 'Nessun dato.'))
+
+            # --- CAPITOLO 6: FONTI & RIFERIMENTI (NUOVO) ---
+            pdf.add_page()  # Nuova pagina per le fonti
+            pdf.chapter_title("6. SOURCES & REFERENCES")
+
+            # 6.1 Link Competitor
+            pdf.set_font('Arial', 'B', 11)
+            pdf.cell(0, 8, "Competitor Websites:", 0, 1)
+
+            has_sources = False
+            if comp_analysis:
+                if isinstance(comp_analysis, dict):
+                    c_obj = comp_analysis
+                else:
+                    c_obj = comp_analysis.model_dump()
+                for c in c_obj.get('competitors', []):
+                    if c.get('website'):
+                        pdf.add_link_line(c['name'], c['website'])
+                        has_sources = True
+
+            pdf.ln(4)
+
+            # 6.2 Link Fact-Checking
+            pdf.set_font('Arial', 'B', 11)
+            pdf.cell(0, 8, "Fact-Checking Sources:", 0, 1)
+
+            claims = result.get("fact_checking_table", [])
+            for claim in claims:
+                url = claim.get("source_url")
+                if url:
+                    # Usiamo l'inizio dell'affermazione come etichetta
+                    label = claim.get("soggetto", "Fonte") + " (" + claim.get("status", "") + ")"
+                    pdf.add_link_line(label, url)
+                    has_sources = True
+
+            if not has_sources:
+                pdf.chapter_body("Nessun link esterno rilevato.")
+
+            # Output
             pdf_output = pdf.output(dest='S').encode('latin-1')
 
             st.download_button(
-                "📕 Report PDF",
+                "📕 Report PDF (Full)",
                 pdf_output,
                 file_name=f"Report_{entity_to_analyze}.pdf",
                 mime="application/pdf"
             )
         except Exception as e:
-            st.error(f"Errore PDF: {e}")
+            st.error(f"Errore generazione PDF: {e}")
 
 # Footer
 st.markdown("---")

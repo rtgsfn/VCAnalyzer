@@ -11,7 +11,7 @@ import config
 # Import tool e schemi
 from graph import GraphTool
 from extractor import KnowledgeGraph, DocumentClaims, Claim, RelazioneFondata, RelazioneInvestimento, \
-    RelazioneFallimento
+    RelazioneFallimento, CompetitorAnalysis, Competitor
 from scraper import scrape_article_text
 
 # Import componenti LangChain & API
@@ -415,6 +415,9 @@ Verdetto:""")
                 try:
                     result_dict = future.result()
                     evidence = result_dict.get("answer", "Nessuna risposta trovata.")
+                    raw_results = result_dict.get("results", [])
+                    if raw_results and len(raw_results) > 0:
+                        source_url = raw_results[0].get("url")
                     if not evidence:
                         evidence = "Nessuna prova trovata."
                 except Exception as e:
@@ -446,7 +449,8 @@ Verdetto:""")
                     "soggetto": claim.soggetto,
                     "affermazione": claim.affermazione,
                     "status": verdetto_pulito,
-                    "prove": evidence
+                    "prove": evidence,
+                    "source_url": source_url
                 })
 
         # Statistiche
@@ -899,6 +903,11 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
 
     **CATEGORIE DI RISCHIO SPECIFICHE PER {sector.upper()} DA ANALIZZARE**:
     {risk_categories}
+    
+    **ISTRUZIONI RIGIDE DI OUTPUT**:
+    - Rispondi SOLO con il report in Markdown.
+    - NON inserire saluti, introduzioni o frasi come "Ecco l'analisi".
+    - Inizia DIRETTAMENTE con il titolo "## 🚩 Risk Analysis".
 
     **OUTPUT FORMATO**:
 
@@ -963,6 +972,11 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
             ("system", f"""{persona} Stai valutando la fattibilità di un investimento.
 
     Analizza la fattibilità su 3 dimensioni: Technical, Market, Financial.
+    
+    **ISTRUZIONI RIGIDE DI OUTPUT**:
+    - Rispondi SOLO con il report in Markdown.
+    - NON inserire preamboli.
+    - Inizia DIRETTAMENTE con il titolo "## ✅ Feasibility Analysis".
     
     **OBBLIGO DI CITAZIONE**:
     Ogni volta che citi un dato tecnico o di mercato presente nei documenti, DEVI indicare la fonte tra parentesi.
@@ -1045,6 +1059,65 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
             self.log_status(f"❌ Errore Feasibility Analysis: {e}", "error")
             return f"## ❌ Errore Feasibility Analysis\n\n{e}"
 
+    def identify_competitors(self, entity_name: str, sector: str, description_context: str) -> CompetitorAnalysis:
+        """
+        Identifica i competitor e analizza il posizionamento.
+        Funziona per qualsiasi settore (VC, RE, Pharma, ecc.) adattando la query.
+        """
+        self.log_status(f"⚔️ [Tool 7] Analisi Competitor per '{entity_name}' ({sector})", "info")
+
+        # Query dinamica che si adatta al settore
+        query = f"top 5 competitors and alternatives to {entity_name} in {sector} market. Focus on: {description_context}"
+
+        try:
+            # 1. Ricerca Web (Tavily)
+            search_result = self.url_search_tool.invoke(query)
+
+            # Costruiamo il contesto unendo la risposta sintetica e i risultati grezzi
+            web_context = search_result.get("answer", "")
+            raw_results = search_result.get("results", [])
+            for res in raw_results:
+                web_context += f"\n- {res.get('title')}: {res.get('content')} ({res.get('url')})"
+
+        except Exception as e:
+            self.log_status(f"⚠️ Errore ricerca competitor: {e}", "warning")
+            # Restituisci un oggetto vuoto in caso di errore per non bloccare il flusso
+            return CompetitorAnalysis(competitors=[], market_position="Ricerca fallita o dati insufficienti.")
+
+        # 2. Estrazione Strutturata con LLM
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """Sei un esperto di Market Research & Competitive Intelligence. 
+            Il tuo compito è identificare i principali player che competono con l'entità target.
+
+            Analizza i risultati di ricerca forniti e estrai:
+            1. **Competitor**: Lista dei top 3-5 competitor diretti o indiretti.
+            2. **Differentiation**: Per ognuno, spiega in una frase il loro vantaggio o svantaggio rispetto a {entity}.
+            3. **Market Position**: Sintesi finale di come si posiziona {entity} nel panorama (es. "Leader di nicchia", "Challenger innovativo", "Player generalista").
+
+            Adattati al settore specifico ({sector}):
+            - Se Real Estate: cerca proprietà simili o sviluppatori nella stessa area.
+            - Se Pharma: cerca farmaci con meccanismo d'azione simile o stesso target terapeutico.
+            - Se VC/Startup: cerca startup/entità che risolvono lo stesso problema.
+            """),
+            ("user", "Entità: {entity}\nSettore: {sector}\nContesto Web:\n{context}")
+        ])
+
+        try:
+            # Usa with_structured_output per garantire il formato JSON/Pydantic corretto
+            chain = prompt | self.llm_pro.with_structured_output(CompetitorAnalysis)
+
+            analysis = chain.invoke({
+                "entity": entity_name,
+                "sector": sector,
+                "context": web_context[:20000]  # Limitiamo il contesto per sicurezza
+            })
+
+            self.log_status(f"✅ Identificati {len(analysis.competitors)} competitor", "success")
+            return analysis
+
+        except Exception as e:
+            self.log_status(f"❌ Errore parsing competitor: {e}", "error")
+            return CompetitorAnalysis(competitors=[], market_position="Errore durante l'analisi competitiva.")
 
     # ============================================================================
     # ORCHESTRATORE PRINCIPALE (Aggiornato)
@@ -1161,6 +1234,10 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
                 metrics_analysis = self.generate_metrics_analysis(metrics, persona)
                 results["metrics_analysis"] = metrics_analysis
 
+                entity_desc = results.get("entity_analysis", {}).get("context", "")
+                competitor_analysis = self.identify_competitors(entita_focus, sector, entity_desc)
+                results["competitor_analysis"] = competitor_analysis
+
                 risk_analysis = self.generate_risk_analysis(entita_focus, fact_checking_summary, contesto_grafo,
                                                             metrics_analysis, persona, sector)
                 results["risk_analysis"] = risk_analysis
@@ -1249,8 +1326,11 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
             ("system", f"""{persona} Stai scrivendo l'Investment Summary per l'Investment Comitee.
 
     Sintetizza TUTTO in una raccomandazione chiara e azionabile.
-
-    **OUTPUT FORMATO**:
+    
+    **ISTRUZIONI RIGIDE DI OUTPUT**:
+    - Rispondi SOLO con il report in Markdown.
+    - NON inserire preamboli.
+    - Inizia DIRETTAMENTE con il titolo "## 📋 Executive Summary".
 
     ## 📋 Executive Summary
 
