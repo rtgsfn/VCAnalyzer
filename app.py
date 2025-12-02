@@ -403,23 +403,77 @@ def render_knowledge_graph(nodes_data, edges_data, entity_name):
         st.info(f"ℹ️ Nessun dato nel Knowledge Graph per '{entity_name}'")
         return
 
-    color_map = {"Startup": "#FF6B6B", "Persona": "#4ECDC4", "Investitore": "#45B7D1", "Entita": "#95E1D3"}
+    # Usiamo la palette centralizzata da config.py se disponibile, altrimenti fallback
+    try:
+        from config import GRAPH_COLOR_PALETTE, GRAPH_CONFIG
+        color_map = GRAPH_COLOR_PALETTE
+        # Creiamo un oggetto Config di agraph usando il dizionario
+        # Nota: Streamlit-agraph vuole un oggetto Config, non un dict diretto
+        config = Config(
+            width=GRAPH_CONFIG["width"],
+            height=GRAPH_CONFIG["height"],
+            directed=GRAPH_CONFIG["directed"],
+            physics=GRAPH_CONFIG["physics"],
+            hierarchical=False,
+            # Aggiungiamo opzioni extra per la UI
+            interaction={"navigationButtons": True, "zoomView": True}
+        )
+    except ImportError:
+        # Fallback se config non è importabile
+        color_map = {"Startup": "#FF6B6B", "Persona": "#4ECDC4", "Investitore": "#45B7D1", "Entita": "#95E1D3"}
+        config = Config(width=900, height=600, directed=True, physics=True, hierarchical=False)
     nodes = []
+    seen_nodes = set()
     for n in nodes_data:
+        if n["id"] in seen_nodes:
+            continue
+        seen_nodes.add(n["id"])
+        # Determina il tipo e il colore
         node_type = n["label"].split("\n")[0] if "\n" in n["label"] else "Entita"
-        color = color_map.get(node_type, "#95E1D3")
-        size = 25 if n["id"] == entity_name else 18
-        color = "#FFD93D" if n["id"] == entity_name else color
 
-        nodes.append(Node(id=n["id"], label=n["label"], color=color, size=size, font={"size": 14, "color": "#2C3E50"}))
+        # Logica speciale per il nodo centrale (Focus)
+        if n["id"] == entity_name:
+            color = color_map.get("focus_entity", "#FFD93D")
+            size = 40  # Nodo centrale ben visibile
+            font_size = 20
+        else:
+            color = color_map.get(node_type, "#95E1D3")
+            size = 20  # Nodi periferici standard
+            font_size = 14
 
-    edges = [Edge(source=e["source"], target=e["target"], label=e["label"], color="#7F8C8D", width=2) for e in
-             edges_data]
+        # Aggiungiamo il nodo con le proprietà fisiche
+        nodes.append(Node(
+            id=n["id"],
+            label=n["label"],
+            color=color,
+            size=size,
+            font={"size": font_size, "color": "#2C3E50"},
+            # Opzionale: Shape diversa per tipo
+            shape="dot"
+        ))
 
-    config = Config(width=900, height=600, directed=True, physics=True, hierarchical=False,
-                    nodeHighlightBehavior=True, highlightColor="#F7DC6F", collapsible=False)
+    # Costruzione Archi
+    edges = []
+    for e in edges_data:
+        # Colora l'arco in base al tipo di relazione (se presente nella mappa)
+        # es. HA_FONDATO -> Verde, HA_INVESTITO -> Blu
+        rel_type = e["label"].split(" ")[0]  # Prende la prima parola della label
+        edge_color = color_map.get(rel_type, color_map.get("default_edge", "#A9D0F5"))  # Grigio default
+
+        edges.append(Edge(
+            source=e["source"],
+            target=e["target"],
+            label=e["label"],
+            color=edge_color,
+            width=2,
+            # Aggiungiamo frecce per la direzione
+            arrows="to"
+        ))
 
     st.markdown(f"### 🕸️ Knowledge Graph per **{entity_name}**")
+    st.caption("Usa la rotellina per zoomare e trascina per navigare.")
+
+    # Render finale
     agraph(nodes=nodes, edges=edges, config=config)
 
 
@@ -677,13 +731,13 @@ if st.button("🚀 Avvia Analisi", type="primary", width='stretch'):
         else:
             # --- Metriche Dinamiche: Questo è il primo blocco visibile ---
             with metrics_placeholder.container():
-                st.markdown(f"# 📊 {sector} Analysis Report")  # TITOLO ALL'INIZIO DEL CONTAINER
+                st.markdown(f"# 🚀 {sector} Analysis Report")  # TITOLO ALL'INIZIO DEL CONTAINER
                 #st.caption(f"Analisi completata in {elapsed:.1f} secondi")
                 st.markdown("---")
 
                 metrics = result.get("metrics")
                 if metrics:
-                    st.markdown(f"## 📊 Metriche Chiave Recuperate")
+                    st.markdown(f"## 📈 Metriche Chiave Recuperate")
 
                     # --- LOGICA DI RENDERING DINAMICO ---
 

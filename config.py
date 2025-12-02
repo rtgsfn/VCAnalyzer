@@ -5,28 +5,32 @@
 # ============================================================================
 
 GRAPH_COLOR_PALETTE = {
-    # Nodi per tipo
-    "Startup": "#FF6B6B",  # Rosso corallo vibrante
-    "Persona": "#4ECDC4",  # Turchese
-    "Investitore": "#45B7D1",  # Blu chiaro
-    "Fondo": "#9B59B6",  # Viola
-    "Entita": "#95E1D3",  # Verde acqua (fallback)
+    # 1. Nodi per tipo (Entità Secondarie - Azzurro)
+    "Startup": "#3498DB",  # Azzurro scuro
+    "Investitore": "#3498DB",  # Azzurro scuro
+    "Fondo": "#3498DB",  # Azzurro scuro
+    "Entita": "#3498DB",  # Fallback azzurro scuro
 
-    # Nodi speciali
-    "focus_entity": "#FFD93D",  # Giallo oro per entità target
-    "failed": "#E74C3C",  # Rosso scuro per fallimenti
+    # 2. Persona (Viola)
+    "Persona": "#9B59B6",  # Viola ametista
 
-    # Edges
-    "HA_FONDATO": "#2ECC71",  # Verde per fondazioni
-    "HA_INVESTITO_IN": "#3498DB",  # Blu per investimenti
-    "PROBLEMI": "#E74C3C",  # Rosso per problemi/fallimenti
-    "default_edge": "#7F8C8D"  # Grigio per altre relazioni
+    # 3. Nodi speciali (Focus - Rosso)
+    "focus_entity": "#FF4B4B",  # Rosso acceso
+    "failed": "#C0392B",  # Rosso scuro (per fallimenti, se vuoi mantenerlo distinto)
+
+    # 4. Archi / Frecce (Azzurro Pastello)
+    "default_edge": "#A9D0F5",  # Azzurro pastello per le frecce
+
+    # Se vuoi che TUTTE le frecce siano pastello, sovrascrivi anche le chiavi specifiche:
+    "HA_FONDATO": "#A9D0F5",
+    "HA_INVESTITO_IN": "#A9D0F5",
+    "PROBLEMI": "#A9D0F5"
+    # Altrimenti, puoi commentare queste 3 righe per mantenere i colori semantici (verde/blu/rosso)
 }
 
 # ============================================================================
 # CONFIGURAZIONE VISUALIZZAZIONE GRAFO
 # ============================================================================
-
 GRAPH_CONFIG = {
     "width": 900,
     "height": 600,
@@ -35,25 +39,34 @@ GRAPH_CONFIG = {
         "enabled": True,
         "solver": "forceAtlas2Based",
         "forceAtlas2Based": {
-            "gravitationalConstant": -50,
-            "centralGravity": 0.01,
-            "springLength": 100,
-            "springConstant": 0.08
+            "gravitationalConstant": -100,  # Aumentata repulsione (era -50)
+            "centralGravity": 0.005,        # Ridotta gravità centrale (era 0.01) per allargare il grafo
+            "springLength": 250,            # Aumentata lunghezza archi (era 100) per distanziare
+            "springConstant": 0.05,         # Molle leggermente più morbide
+            "damping": 0.4,                 # Smorzamento per evitare oscillazioni
+            "avoidOverlap": 1               # Forza i nodi a non sovrapporsi
         },
         "stabilization": {
             "enabled": True,
-            "iterations": 100
-        }
+            "iterations": 200,              # Più iterazioni per stabilizzare meglio il layout iniziale
+            "fit": True
+        },
+        "minVelocity": 0.75
     },
+    "interaction": {
+        "navigationButtons": True,          # Aggiunge pulsanti zoom/pan
+        "zoomView": True
+    },
+    # ... (restanti impostazioni di node_sizes ed edge_width invariate) ...
     "node_sizes": {
-        "focus": 25,  # Nodo target
-        "connected": 18,  # Nodi connessi
-        "default": 15  # Altri nodi
+        "focus": 35,      # Leggermente più grande il nodo centrale
+        "connected": 20,
+        "default": 15
     },
     "edge_width": {
-        "strong": 3,  # Relazioni importanti
-        "normal": 2,  # Relazioni standard
-        "weak": 1  # Relazioni deboli
+        "strong": 3,
+        "normal": 1,      # Archi più sottili per pulizia visiva
+        "weak": 1
     }
 }
 
