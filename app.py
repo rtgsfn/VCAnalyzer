@@ -752,7 +752,7 @@ if "analysis_results" in st.session_state:
     else:
         with metrics_placeholder.container():
             st.markdown(f"# 🚀 {sector} Analysis Report")
-            st.caption(f"Analisi completata in {elapsed:.1f} secondi")
+            #st.caption(f"Analisi completata in {elapsed:.1f} secondi")
             st.markdown("---")
 
             metrics = result.get("metrics")
