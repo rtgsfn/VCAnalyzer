@@ -428,7 +428,7 @@ def render_fact_checking_table(claims_data: List[dict]):
     # 4. Render Tabella con Configurazione Link
     st.dataframe(
         df_display,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         column_config={
             "Soggetto": st.column_config.TextColumn("Soggetto", width="small"),
