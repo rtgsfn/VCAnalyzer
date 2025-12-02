@@ -19,12 +19,13 @@ GRAPH_COLOR_PALETTE = {
     "failed": "#C0392B",  # Rosso scuro (per fallimenti, se vuoi mantenerlo distinto)
 
     # 4. Archi / Frecce (Azzurro Pastello)
-    "default_edge": "#A9D0F5",  # Azzurro pastello per le frecce
+    # Cambiamo il default da azzurro pastello a nero
+    "default_edge": "#000000",  # Azzurro pastello per le frecce
 
     # Se vuoi che TUTTE le frecce siano pastello, sovrascrivi anche le chiavi specifiche:
-    "HA_FONDATO": "#A9D0F5",
-    "HA_INVESTITO_IN": "#A9D0F5",
-    "PROBLEMI": "#A9D0F5"
+    # "HA_FONDATO": "#A9D0F5",
+    # "HA_INVESTITO_IN": "#A9D0F5",
+    # "PROBLEMI": "#A9D0F5"
     # Altrimenti, puoi commentare queste 3 righe per mantenere i colori semantici (verde/blu/rosso)
 }
 

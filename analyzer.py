@@ -816,7 +816,7 @@ Se i dati sono Real Estate (Cap Rate, Occupancy), usa i benchmark RE (es. Cap Ra
 
 **OUTPUT RICHIESTO** (Markdown):
 
-## 📊 Metrics Analysis vs. Benchmarks
+## 📈 Metrics Analysis vs. Benchmarks
 
 ### ✅ Strong Metrics (Above Benchmark)
 [Lista metriche che battono il benchmark con % di outperformance o commento specifico al settore. Es: "Cap Rate 7.5% vs 6.0% Benchmark."]
